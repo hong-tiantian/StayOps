@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { getOpsTasks, loadApprovalRecords } from "@/lib/data";
+import { getOpsTasks, loadApprovalRecords, loadPromiseLedger } from "@/lib/data";
+import { recordFeedback } from "@/lib/learning/feedbackStore";
 
 export const dynamic = "force-dynamic";
 
@@ -18,6 +19,15 @@ export async function POST(
 ) {
   const { promise_id } = await params;
   approvedSet().add(promise_id);
+
+  // Feed the self-improvement loop: record the manager's approval.
+  const row = loadPromiseLedger().find((p) => p.promise_id === promise_id);
+  recordFeedback({
+    promise_id,
+    promise_text: row?.promise_text,
+    prior_status: row?.status,
+    decision: "approved",
+  });
 
   // Display (do not recreate or complete) the existing source task.
   // TASK-103 for P-002 is intentionally left open to drive the complaint demo.

@@ -1,6 +1,7 @@
 import type { Content } from "@google/genai";
 import { Type, ThinkingLevel } from "@google/genai";
 import { generateWithRetry, GEMINI_MODEL } from "../gemini";
+import { traceAsync, traceSync } from "../tracing";
 import { ToolRunner } from "../tools";
 import { Message, Reservation } from "../types";
 import { AGENT_TOOL_DECLARATIONS, dispatchTool } from "./agentTools";
@@ -97,69 +98,88 @@ export async function runPromiseAgent(
   messages: Message[],
   reservation: Reservation | null
 ): Promise<AgentRunResult> {
-  const runner = new ToolRunner();
+  const emailContext = buildEmailContext(messages, reservation);
 
-  const contents: Content[] = [
-    {
+  // Root agent span — the whole audit shows up as one trace tree in Phoenix.
+  return traceAsync("promise_audit", "AGENT", { "input.value": emailContext.slice(0, 2000) }, async () => {
+    const runner = new ToolRunner();
+    const contents: Content[] = [
+      { role: "user", parts: [{ text: `${emailContext}\n\nBegin the promise audit.` }] },
+    ];
+
+    let steps = 0;
+    for (; steps < MAX_STEPS; steps++) {
+      const res = await traceAsync(
+        "gemini.tool_calling",
+        "LLM",
+        { "llm.model_name": GEMINI_MODEL, "input.value": `tool-calling turn ${steps}` },
+        () =>
+          generateWithRetry({
+            model: GEMINI_MODEL,
+            contents,
+            config: {
+              systemInstruction: SYSTEM_INSTRUCTION,
+              tools: [{ functionDeclarations: AGENT_TOOL_DECLARATIONS }],
+              temperature: 0,
+              thinkingConfig: { thinkingLevel: ThinkingLevel.MINIMAL },
+            },
+          })
+      );
+
+      const calls = res.functionCalls;
+      const modelContent = res.candidates?.[0]?.content;
+      if (modelContent) contents.push(modelContent);
+
+      if (!calls || calls.length === 0) break; // model finished exploring
+
+      const responseParts = calls.map((call) => {
+        const name = call.name ?? "";
+        const args = call.args ?? {};
+        // Each tool call is its own OpenInference TOOL span under the agent.
+        const result = traceSync(
+          `tool.${name}`,
+          "TOOL",
+          { "tool.name": name, "input.value": JSON.stringify(args) },
+          () => dispatchTool(name, args, runner)
+        );
+        return { functionResponse: { name, response: { result } } };
+      });
+      contents.push({ role: "user", parts: responseParts });
+    }
+
+    // Finalization: ask for the structured proposal (no tools this turn).
+    contents.push({
       role: "user",
-      parts: [{ text: `${buildEmailContext(messages, reservation)}\n\nBegin the promise audit.` }],
-    },
-  ];
-
-  let steps = 0;
-  for (; steps < MAX_STEPS; steps++) {
-    const res = await generateWithRetry({
-      model: GEMINI_MODEL,
-      contents,
-      config: {
-        systemInstruction: SYSTEM_INSTRUCTION,
-        tools: [{ functionDeclarations: AGENT_TOOL_DECLARATIONS }],
-        temperature: 0,
-        thinkingConfig: { thinkingLevel: ThinkingLevel.MINIMAL },
-      },
+      parts: [
+        {
+          text:
+            "Now output the final audit as JSON. Use promise_type values from " +
+            "{confirmed_commitment, request_noted, preference, operational_requirement, " +
+            "commercial_requirement, missing_info_request, risk_sensitive_request} and " +
+            "owner_department from {front_desk, housekeeping, fb, events, sales, concierge, manager}.",
+        },
+      ],
     });
 
-    const calls = res.functionCalls;
-    const modelContent = res.candidates?.[0]?.content;
-    if (modelContent) contents.push(modelContent);
+    const finalRes = await traceAsync(
+      "gemini.finalize",
+      "LLM",
+      { "llm.model_name": GEMINI_MODEL, "input.value": "structured proposal" },
+      () =>
+        generateWithRetry({
+          model: GEMINI_MODEL,
+          contents,
+          config: {
+            systemInstruction: SYSTEM_INSTRUCTION,
+            responseMimeType: "application/json",
+            responseSchema: PROPOSAL_SCHEMA,
+            temperature: 0,
+            thinkingConfig: { thinkingLevel: ThinkingLevel.MINIMAL },
+          },
+        })
+    );
 
-    if (!calls || calls.length === 0) break; // model finished exploring
-
-    const responseParts = calls.map((call) => ({
-      functionResponse: {
-        name: call.name ?? "",
-        response: { result: dispatchTool(call.name ?? "", call.args ?? {}, runner) },
-      },
-    }));
-    contents.push({ role: "user", parts: responseParts });
-  }
-
-  // Finalization: ask for the structured proposal (no tools this turn).
-  contents.push({
-    role: "user",
-    parts: [
-      {
-        text:
-          "Now output the final audit as JSON. Use promise_type values from " +
-          "{confirmed_commitment, request_noted, preference, operational_requirement, " +
-          "commercial_requirement, missing_info_request, risk_sensitive_request} and " +
-          "owner_department from {front_desk, housekeeping, fb, events, sales, concierge, manager}.",
-      },
-    ],
+    const parsed = JSON.parse((finalRes.text ?? "{}").trim()) as { promises?: AgentProposal[] };
+    return { proposals: parsed.promises ?? [], runner, steps };
   });
-
-  const finalRes = await generateWithRetry({
-    model: GEMINI_MODEL,
-    contents,
-    config: {
-      systemInstruction: SYSTEM_INSTRUCTION,
-      responseMimeType: "application/json",
-      responseSchema: PROPOSAL_SCHEMA,
-      temperature: 0,
-      thinkingConfig: { thinkingLevel: ThinkingLevel.MINIMAL },
-    },
-  });
-
-  const parsed = JSON.parse((finalRes.text ?? "{}").trim()) as { promises?: AgentProposal[] };
-  return { proposals: parsed.promises ?? [], runner, steps };
 }
