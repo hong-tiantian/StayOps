@@ -2,6 +2,7 @@
 
 import { OpsTask } from "@/lib/types";
 import { TASK_COLUMNS, TaskColumn, TaskWarning } from "@/lib/taskTypes";
+import { Lang, ui } from "@/lib/i18n";
 
 export interface DecoratedTask extends OpsTask {
   column: TaskColumn;
@@ -21,10 +22,13 @@ const COLUMN_ACCENT: Record<TaskColumn, string> = {
 export default function TaskBoard({
   tasks,
   highlightIds = [],
+  lang,
 }: {
   tasks: DecoratedTask[];
   highlightIds?: string[];
+  lang: Lang;
 }) {
+  const copy = ui[lang];
   return (
     <div className="flex gap-3 overflow-x-auto pb-2">
       {TASK_COLUMNS.map((col) => {
@@ -32,7 +36,7 @@ export default function TaskBoard({
         return (
           <div key={col} className="w-64 flex-shrink-0">
             <div className="mb-2 flex items-center justify-between px-1">
-              <h3 className="text-xs font-semibold text-gray-600">{col}</h3>
+              <h3 className="text-xs font-semibold text-gray-600">{copy.task.columns[col]}</h3>
               <span className="rounded-full bg-gray-200 px-1.5 text-[10px] text-gray-600">
                 {colTasks.length}
               </span>
@@ -55,10 +59,10 @@ export default function TaskBoard({
                     </div>
                     <p className="mb-2 text-xs leading-snug text-gray-700">{t.description}</p>
                     <div className="space-y-1 text-[10px] text-gray-400">
-                      <div>Due: {t.due_at ? t.due_at.replace("T", " ") : "—"}</div>
-                      <div>Owner: {t.owner}</div>
+                      <div>{copy.task.due}: {t.due_at ? t.due_at.replace("T", " ") : "—"}</div>
+                      <div>{copy.task.owner}: {t.owner}</div>
                       <div>
-                        Source:{" "}
+                        {copy.task.source}:{" "}
                         <span className="font-mono text-gray-500">{t.source_promise_id}</span>
                       </div>
                     </div>
@@ -78,7 +82,7 @@ export default function TaskBoard({
               })}
               {colTasks.length === 0 && (
                 <div className="rounded-lg border border-dashed border-gray-200 py-6 text-center text-[10px] text-gray-300">
-                  empty
+                  {copy.task.empty}
                 </div>
               )}
             </div>

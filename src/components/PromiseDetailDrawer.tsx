@@ -4,6 +4,46 @@ import { PromiseDecision, RecoveryTrace } from "@/lib/types";
 import StatusBadge from "./StatusBadge";
 import ToolCallLog from "./ToolCallLog";
 import { failurePointLabel, failureTypeLabel } from "@/lib/humanize";
+import { Lang, ui } from "@/lib/i18n";
+
+const DETAIL = {
+  en: {
+    sourceQuote: "Source quote",
+    promiseType: "Promise type",
+    freshness: "Freshness status",
+    evidence: "Evidence",
+    risk: "Risk reason",
+    action: "Recommended action",
+    approval: "Approval status",
+    approvedBy: "Approved by manager",
+    requires: "Requires manager approval",
+    noApproval: "No approval required",
+    execution: "Execution state",
+    complaintTrace: "Complaint trace",
+    wentWrong: "What went wrong",
+    broke: "Where it broke",
+    rootCause: "Root cause",
+    tools: "Tool calls used",
+  },
+  zh: {
+    sourceQuote: "来源原文",
+    promiseType: "承诺类型",
+    freshness: "数据新鲜度",
+    evidence: "证据",
+    risk: "风险原因",
+    action: "建议动作",
+    approval: "审批状态",
+    approvedBy: "经理已批准",
+    requires: "需要经理审批",
+    noApproval: "无需审批",
+    execution: "执行状态",
+    complaintTrace: "投诉追踪",
+    wentWrong: "出了什么问题",
+    broke: "断在哪",
+    rootCause: "根因",
+    tools: "使用的工具调用",
+  },
+} as const;
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -23,6 +63,7 @@ export default function PromiseDetailDrawer({
   trace,
   onApprove,
   onClose,
+  lang,
 }: {
   decision: PromiseDecision | null;
   approved: Set<string>;
@@ -30,8 +71,11 @@ export default function PromiseDetailDrawer({
   trace: RecoveryTrace | null;
   onApprove: (promise_id: string) => void;
   onClose: () => void;
+  lang: Lang;
 }) {
   if (!decision) return null;
+  const t = DETAIL[lang];
+  const common = ui[lang];
   const isApproved = approved.has(decision.promise_id);
   const fresh = freshnessByPromise[decision.promise_id] ?? [];
   const matched = trace?.matched_promises.find((m) => m.promise_id === decision.promise_id);
@@ -45,7 +89,7 @@ export default function PromiseDetailDrawer({
             <div className="font-mono text-[10px] text-gray-400">{decision.promise_id}</div>
             <h3 className="text-base font-semibold text-gray-900">{decision.promise_text}</h3>
             <div className="mt-1">
-              <StatusBadge status={decision.status} />
+              <StatusBadge status={decision.status} lang={lang} />
             </div>
           </div>
           <button
@@ -57,7 +101,7 @@ export default function PromiseDetailDrawer({
         </div>
 
         <div className="space-y-4 px-4 py-4">
-          <Section title="Source quote">
+          <Section title={t.sourceQuote}>
             <blockquote className="border-l-2 border-gray-300 pl-3 italic text-gray-600">
               “{decision.source_quote}”
               <span className="ml-1 not-italic text-[11px] text-gray-400">
@@ -66,7 +110,7 @@ export default function PromiseDetailDrawer({
             </blockquote>
           </Section>
 
-          <Section title="Promise type">
+          <Section title={t.promiseType}>
             <div className="flex flex-wrap gap-1">
               {decision.promise_type.map((t) => (
                 <span
@@ -79,7 +123,7 @@ export default function PromiseDetailDrawer({
             </div>
           </Section>
 
-          <Section title="Freshness status">
+          <Section title={t.freshness}>
             <div className="flex flex-wrap gap-1.5">
               {fresh.map((f) => (
                 <span
@@ -97,7 +141,7 @@ export default function PromiseDetailDrawer({
             </div>
           </Section>
 
-          <Section title="Evidence">
+          <Section title={t.evidence}>
             <ul className="list-disc space-y-1 pl-4 text-sm text-gray-600">
               {decision.evidence.map((e, i) => (
                 <li key={i}>{e}</li>
@@ -105,35 +149,35 @@ export default function PromiseDetailDrawer({
             </ul>
           </Section>
 
-          <Section title="Risk reason">{decision.risk_reason}</Section>
+          <Section title={t.risk}>{decision.risk_reason}</Section>
 
-          <Section title="Recommended action">{decision.recommended_action}</Section>
+          <Section title={t.action}>{decision.recommended_action}</Section>
 
-          <Section title="Approval status">
+          <Section title={t.approval}>
             <div className="flex items-center gap-2">
               {decision.approval_required ? (
                 isApproved ? (
                   <span className="rounded-full bg-purple-100 px-2 py-0.5 text-xs font-medium text-purple-800">
-                    Approved by manager
+                    {t.approvedBy}
                   </span>
                 ) : (
                   <>
-                    <span className="text-xs text-gray-500">Requires manager approval</span>
+                    <span className="text-xs text-gray-500">{t.requires}</span>
                     <button
                       onClick={() => onApprove(decision.promise_id)}
                       className="rounded-md bg-purple-600 px-2 py-1 text-[11px] font-medium text-white hover:bg-purple-700"
                     >
-                      Approve
+                      {common.ledger.approve}
                     </button>
                   </>
                 )
               ) : (
-                <span className="text-xs text-gray-500">No approval required</span>
+                <span className="text-xs text-gray-500">{t.noApproval}</span>
               )}
             </div>
           </Section>
 
-          <Section title="Execution state">
+          <Section title={t.execution}>
             <span className="rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-700">
               {decision.execution_state}
             </span>
@@ -147,28 +191,28 @@ export default function PromiseDetailDrawer({
           {matched && (
             <div className="rounded-lg border border-red-200 bg-red-50 p-3">
               <h4 className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-red-500">
-                Complaint trace
+                {t.complaintTrace}
               </h4>
               <div className="space-y-1 text-sm text-red-800">
                 <div>
-                  <span className="font-medium">What went wrong:</span>{" "}
+                  <span className="font-medium">{t.wentWrong}:</span>{" "}
                   {failureTypeLabel(matched.failure_type)}
                 </div>
                 <div>
-                  <span className="font-medium">Where it broke:</span>{" "}
+                  <span className="font-medium">{t.broke}:</span>{" "}
                   {failurePointLabel(matched.failure_point)}
                   <span className="ml-1 font-mono text-[9px] text-rose-300">
                     {matched.failure_point}
                   </span>
                 </div>
                 <div>
-                  <span className="font-medium">Root cause:</span> {matched.root_cause}
+                  <span className="font-medium">{t.rootCause}:</span> {matched.root_cause}
                 </div>
               </div>
             </div>
           )}
 
-          <Section title="Tool calls used">
+          <Section title={t.tools}>
             <ToolCallLog calls={decision.tool_calls} dense />
           </Section>
         </div>

@@ -1,4 +1,5 @@
 import { PromiseStatus } from "@/lib/types";
+import { Lang, ui } from "@/lib/i18n";
 
 const STATUS_STYLES: Record<string, string> = {
   verifiable: "bg-green-100 text-green-800 border-green-200",
@@ -31,18 +32,21 @@ const LABELS: Record<string, string> = {
 export default function StatusBadge({
   status,
   size = "sm",
+  lang = "en",
 }: {
   status: PromiseStatus | string;
   size?: "sm" | "xs";
+  lang?: Lang;
 }) {
   const cls = STATUS_STYLES[status] ?? "bg-gray-100 text-gray-700 border-gray-200";
   const pad = size === "xs" ? "px-1.5 py-0.5 text-[10px]" : "px-2 py-0.5 text-xs";
+  const labels = ui[lang].status;
   return (
     <span
       className={`inline-flex items-center gap-1 rounded-full border font-medium ${pad} ${cls}`}
     >
       <span className="h-1.5 w-1.5 rounded-full bg-current opacity-70" />
-      {LABELS[status] ?? status}
+      {labels[status as keyof typeof labels] ?? LABELS[status] ?? status}
     </span>
   );
 }
