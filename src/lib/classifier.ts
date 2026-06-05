@@ -160,13 +160,27 @@ export function runDeterministicAudit(booking_id: string): AuditResult {
   return { booking_id, reasoning_source: "rules", decisions, tool_calls: allCalls, freshness_summary: freshnessSummary() };
 }
 
+/** Caches successful agent audits so repeated demo runs return instantly. */
+const auditCache = new Map<string, AuditResult>();
+
 /**
- * Entry point. Tries the Gemini agent; on any failure (no credentials, network,
- * bad output) falls back to the deterministic audit so the demo never breaks.
+ * Entry point. Returns a cached agent result when available; otherwise tries the
+ * Gemini agent and, on any failure (no credentials, network, rate limit, bad
+ * output), falls back to the deterministic audit so the demo never breaks.
+ * Pass `{ force: true }` to bypass the cache and re-run the agent.
  */
-export async function runPromiseAudit(booking_id: string): Promise<AuditResult> {
+export async function runPromiseAudit(
+  booking_id: string,
+  opts?: { force?: boolean }
+): Promise<AuditResult> {
+  if (!opts?.force) {
+    const cached = auditCache.get(booking_id);
+    if (cached) return cached;
+  }
   try {
-    return await runAgentAudit(booking_id);
+    const result = await runAgentAudit(booking_id);
+    auditCache.set(booking_id, result); // cache only successful agent runs
+    return result;
   } catch (err) {
     console.warn("[StayOps] Gemini agent unavailable, using deterministic fallback:", err);
     return runDeterministicAudit(booking_id);

@@ -1,5 +1,5 @@
 import type { Content } from "@google/genai";
-import { Type } from "@google/genai";
+import { Type, ThinkingLevel } from "@google/genai";
 import { generateWithRetry, GEMINI_MODEL } from "../gemini";
 import { ToolRunner } from "../tools";
 import { Message, Reservation } from "../types";
@@ -45,8 +45,10 @@ and you must NOT invent guarantees. Your job:
 3. Never claim a promise is executable without tool evidence. If required guest info is
    missing (e.g. flight number, billing details) say so. If data is stale, do not guarantee.
 
-Call tools in parallel when independent. When you have enough evidence for ALL promises,
-stop calling tools and wait for the final formatting instruction.`;
+SPEED IS CRITICAL: In your FIRST turn, emit ALL the tool calls you need across ALL
+promises AT ONCE (parallel function calls). Do not explore one promise per turn. After
+the tool results come back, if you have enough evidence, stop and wait for the final
+formatting instruction.`;
 
 /** Structured output schema for the final proposal step. */
 const PROPOSAL_SCHEMA = {
@@ -113,6 +115,7 @@ export async function runPromiseAgent(
         systemInstruction: SYSTEM_INSTRUCTION,
         tools: [{ functionDeclarations: AGENT_TOOL_DECLARATIONS }],
         temperature: 0,
+        thinkingConfig: { thinkingLevel: ThinkingLevel.MINIMAL },
       },
     });
 
@@ -153,6 +156,7 @@ export async function runPromiseAgent(
       responseMimeType: "application/json",
       responseSchema: PROPOSAL_SCHEMA,
       temperature: 0,
+      thinkingConfig: { thinkingLevel: ThinkingLevel.MINIMAL },
     },
   });
 
