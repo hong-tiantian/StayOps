@@ -13,6 +13,7 @@ import HotelMap from "@/components/HotelMap";
 import ComplaintRecovery from "@/components/ComplaintRecovery";
 import ToolCallLog from "@/components/ToolCallLog";
 import SpotlightCard from "@/components/SpotlightCard";
+import ManagerBriefing from "@/components/ManagerBriefing";
 import {
   FreshnessResult,
   Message,
@@ -159,7 +160,17 @@ export default function Page() {
       tracing={tracing}
     >
       {activeTab === "dashboard" && (
-        <div className="space-y-4">
+        <div className="space-y-5">
+          <ManagerBriefing
+            reservation={reservation}
+            decisions={decisions}
+            tasks={tasks}
+            freshness={freshness}
+            onRunAudit={() => runAudit(false)}
+            onTrace={() => traceComplaint(DEFAULT_COMPLAINT)}
+            auditing={auditing}
+            tracing={tracing}
+          />
           <BookingHeader reservation={reservation} />
           <DataFreshnessPanel sources={freshness} demoNow={demoNow} />
           <div className="grid gap-4 lg:grid-cols-2">

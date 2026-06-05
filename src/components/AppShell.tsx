@@ -33,14 +33,14 @@ export default function AppShell({
   return (
     <div className="min-h-screen">
       <header className="sticky top-0 z-30 border-b border-white/60 glass">
-        <div className="mx-auto flex max-w-[1440px] flex-wrap items-center gap-3 px-5 py-2.5">
+        <div className="mx-auto flex max-w-[1440px] flex-wrap items-center gap-3 px-5 py-3">
           <div className="flex items-center gap-2.5">
-            <div className="grid h-8 w-8 place-items-center rounded-xl bg-gradient-to-br from-indigo-500 to-violet-500 text-sm font-bold text-white shadow-lg shadow-indigo-500/30">
+            <div className="grid h-8 w-8 place-items-center rounded-xl bg-slate-950 text-sm font-semibold text-white shadow-lg shadow-slate-950/15">
               S
             </div>
             <div className="leading-tight">
               <div className="text-sm font-semibold tracking-tight text-slate-900">StayOps</div>
-              <div className="text-[10px] text-slate-400">Promise Ledger</div>
+              <div className="text-[10px] text-slate-400">Hotel promise intelligence</div>
             </div>
           </div>
 
@@ -50,16 +50,16 @@ export default function AppShell({
             </span>
             <input
               placeholder="Search booking / company / room / task / complaint"
-              className="w-full rounded-xl border border-slate-200/80 bg-white/70 py-2 pl-8 pr-3 text-xs text-slate-600 outline-none transition focus:border-indigo-300 focus:ring-4 focus:ring-indigo-500/10"
+              className="w-full rounded-full border border-slate-200/80 bg-white/70 py-2 pl-8 pr-3 text-xs text-slate-600 outline-none transition focus:border-slate-300 focus:ring-4 focus:ring-slate-900/5"
             />
           </div>
 
           <div className="flex items-center gap-2 text-[11px]">
-            <span className="rounded-lg bg-slate-100/80 px-2.5 py-1.5 font-medium text-slate-600">
+            <span className="rounded-full bg-white/70 px-2.5 py-1.5 font-medium text-slate-600 ring-1 ring-slate-200/70">
               {bookingId} · {company}
             </span>
             <span
-              className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 font-medium ${
+              className={`flex items-center gap-1.5 rounded-full px-2.5 py-1.5 font-medium ${
                 allFresh ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"
               }`}
             >
@@ -80,7 +80,7 @@ export default function AppShell({
             <button
               onClick={onTrace}
               disabled={tracing}
-              className="btn border border-rose-200 bg-white text-rose-600 hover:bg-rose-50 disabled:opacity-50"
+              className="btn border border-rose-200 bg-white/80 text-rose-600 hover:bg-rose-50 disabled:opacity-50"
             >
               {tracing ? "Tracing…" : "Trace Complaint"}
             </button>
@@ -95,12 +95,12 @@ export default function AppShell({
                 key={t.key}
                 onClick={() => onTab(t.key)}
                 className={`relative whitespace-nowrap px-3.5 py-2.5 text-xs font-medium transition-colors ${
-                  active ? "text-indigo-600" : "text-slate-500 hover:text-slate-900"
+                  active ? "text-slate-950" : "text-slate-500 hover:text-slate-900"
                 }`}
               >
                 {t.label}
                 {active && (
-                  <span className="absolute inset-x-2 -bottom-px h-0.5 rounded-full bg-gradient-to-r from-indigo-500 to-violet-500" />
+                  <span className="absolute inset-x-2 -bottom-px h-0.5 rounded-full bg-slate-950" />
                 )}
               </button>
             );

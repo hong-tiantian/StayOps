@@ -32,6 +32,15 @@ A complaint later arrives — *"The VP was promised a quiet king room, but was p
 - **Hotel Map** — simplified floor diagram with quiet zone, elevator markers, and VP candidate rooms; highlights the wrongly-assigned room 402 on complaint trace.
 - **Complaint Recovery** — matched promises, broken-promise trace, failure point, immediate recovery actions, guest reply draft, and postmortem/SOP fixes.
 
+## Project Docs
+
+- [Real hotel workflow](docs/real-hotel-workflow.md) — the non-AI workflow and where hotel handoffs break.
+- [Personas and permissions](docs/personas-and-permissions.md) — manager, front desk, events, sales, and demo/judge views.
+- [Demo case](docs/demo-case.md) — the Acme Robotics story and why the case is realistic.
+- [MCP integration plan](docs/mcp-integration.md) — planned Fivetran-style MCP tools and how freshness should affect agent decisions.
+- [API contract](docs/api-contract.md) — expected output schemas for promises, tasks, tool calls, complaint traces, and recovery plans.
+- [Agent decision design](docs/agent-decision-design.md) — how the agent plans tool calls, evaluates evidence, chooses next actions, and monitors failures.
+
 ## Tech Stack
 
 - **Next.js 14** (App Router) + **React 18** + **TypeScript**
@@ -158,4 +167,4 @@ _Placeholder — add screenshots of the Dashboard, Promise Ledger, Task Board, T
 
 ## License
 
-Demo / evaluation use.
+MIT. See [LICENSE](LICENSE).
