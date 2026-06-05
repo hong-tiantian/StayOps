@@ -1,5 +1,7 @@
 "use client";
 
+import { Lang, ui } from "@/lib/i18n";
+
 export interface TabDef {
   key: string;
   label: string;
@@ -16,6 +18,8 @@ export default function AppShell({
   onTrace,
   auditing,
   tracing,
+  lang,
+  onLang,
   children,
 }: {
   tabs: TabDef[];
@@ -28,8 +32,12 @@ export default function AppShell({
   onTrace: () => void;
   auditing: boolean;
   tracing: boolean;
+  lang: Lang;
+  onLang: (lang: Lang) => void;
   children: React.ReactNode;
 }) {
+  const t = ui[lang];
+
   return (
     <div className="min-h-screen">
       <header className="sticky top-0 z-30 border-b border-white/60 glass">
@@ -40,7 +48,7 @@ export default function AppShell({
             </div>
             <div className="leading-tight">
               <div className="text-sm font-semibold tracking-tight text-slate-900">StayOps</div>
-              <div className="text-[10px] text-slate-400">Hotel promise intelligence</div>
+              <div className="text-[10px] text-slate-400">{t.nav.tagline}</div>
             </div>
           </div>
 
@@ -49,7 +57,7 @@ export default function AppShell({
               ⌕
             </span>
             <input
-              placeholder="Search booking / company / room / task / complaint"
+              placeholder={t.nav.search}
               className="w-full rounded-full border border-slate-200/80 bg-white/70 py-2 pl-8 pr-3 text-xs text-slate-600 outline-none transition focus:border-slate-300 focus:ring-4 focus:ring-slate-900/5"
             />
           </div>
@@ -69,20 +77,38 @@ export default function AppShell({
                 }`}
                 style={{ animation: "pulseglow 2.4s ease-in-out infinite" }}
               />
-              Fivetran Sync: {allFresh ? "Fresh" : "Stale"}
+              {t.nav.sync}: {allFresh ? t.nav.fresh : t.nav.stale}
             </span>
           </div>
 
           <div className="flex items-center gap-2">
+            <div className="flex rounded-full border border-slate-200 bg-white/70 p-0.5 text-[11px] font-medium text-slate-500">
+              <button
+                onClick={() => onLang("en")}
+                className={`rounded-full px-2 py-1 ${
+                  lang === "en" ? "bg-slate-950 text-white" : "hover:text-slate-900"
+                }`}
+              >
+                EN
+              </button>
+              <button
+                onClick={() => onLang("zh")}
+                className={`rounded-full px-2 py-1 ${
+                  lang === "zh" ? "bg-slate-950 text-white" : "hover:text-slate-900"
+                }`}
+              >
+                中文
+              </button>
+            </div>
             <button onClick={onRunAudit} disabled={auditing} className="btn btn-primary disabled:opacity-50">
-              {auditing ? "Auditing…" : "Run Promise Audit"}
+              {auditing ? t.nav.auditing : t.nav.audit}
             </button>
             <button
               onClick={onTrace}
               disabled={tracing}
               className="btn border border-rose-200 bg-white/80 text-rose-600 hover:bg-rose-50 disabled:opacity-50"
             >
-              {tracing ? "Tracing…" : "Trace Complaint"}
+              {tracing ? t.nav.tracing : t.nav.trace}
             </button>
           </div>
         </div>

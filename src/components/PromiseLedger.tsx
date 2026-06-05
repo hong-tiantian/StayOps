@@ -2,6 +2,7 @@
 
 import { PromiseDecision } from "@/lib/types";
 import StatusBadge from "./StatusBadge";
+import { Lang, ui } from "@/lib/i18n";
 
 export default function PromiseLedger({
   decisions,
@@ -9,18 +10,20 @@ export default function PromiseLedger({
   onSelect,
   onApprove,
   highlightIds = [],
+  lang,
 }: {
   decisions: PromiseDecision[];
   approved: Set<string>;
   onSelect: (d: PromiseDecision) => void;
   onApprove: (promise_id: string) => void;
   highlightIds?: string[];
+  lang: Lang;
 }) {
+  const t = ui[lang];
   if (decisions.length === 0) {
     return (
       <div className="rounded-xl border border-dashed border-gray-300 bg-white p-10 text-center text-sm text-gray-400">
-        No promises classified yet. Click <span className="font-semibold">Run Promise Audit</span>{" "}
-        on the Dashboard.
+        {t.ledger.empty}
       </div>
     );
   }
@@ -30,16 +33,16 @@ export default function PromiseLedger({
         <thead className="bg-gray-50 text-[11px] uppercase tracking-wide text-gray-500">
           <tr>
             {[
-              "Promise",
-              "Type",
-              "Status",
-              "Evidence",
-              "Risk",
-              "Owner",
-              "Recommended Action",
-              "Approval",
-              "Execution",
-              "Linked Task",
+              t.ledger.promise,
+              t.ledger.type,
+              t.ledger.status,
+              t.ledger.evidence,
+              t.ledger.risk,
+              t.ledger.owner,
+              t.ledger.action,
+              t.ledger.approval,
+              t.ledger.execution,
+              t.ledger.linkedTask,
             ].map((h) => (
               <th key={h} className="px-3 py-2.5 text-left font-medium">
                 {h}
@@ -76,7 +79,7 @@ export default function PromiseLedger({
                   </div>
                 </td>
                 <td className="px-3 py-3">
-                  <StatusBadge status={d.status} />
+                  <StatusBadge status={d.status} lang={lang} />
                 </td>
                 <td className="max-w-[220px] px-3 py-3 text-xs text-gray-500">
                   {d.evidence[0]}
@@ -92,18 +95,18 @@ export default function PromiseLedger({
                   {d.approval_required ? (
                     isApproved ? (
                       <span className="rounded-full bg-purple-100 px-2 py-0.5 text-[10px] font-medium text-purple-800">
-                        Approved
+                        {t.ledger.approved}
                       </span>
                     ) : (
                       <button
                         onClick={() => onApprove(d.promise_id)}
                         className="rounded-md bg-purple-600 px-2 py-1 text-[11px] font-medium text-white hover:bg-purple-700"
                       >
-                        Approve
+                        {t.ledger.approve}
                       </button>
                     )
                   ) : (
-                    <span className="text-[10px] text-gray-400">auto</span>
+                    <span className="text-[10px] text-gray-400">{t.ledger.auto}</span>
                   )}
                 </td>
                 <td className="px-3 py-3 text-xs text-gray-500">{d.execution_state}</td>

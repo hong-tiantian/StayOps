@@ -1,4 +1,5 @@
 import { Message } from "@/lib/types";
+import { Lang, ui } from "@/lib/i18n";
 
 const CHANNEL_LABEL: Record<string, string> = {
   sales_email: "Sales email",
@@ -7,11 +8,12 @@ const CHANNEL_LABEL: Record<string, string> = {
   complaint: "Complaint",
 };
 
-export default function BookingEmailPanel({ messages }: { messages: Message[] }) {
+export default function BookingEmailPanel({ messages, lang }: { messages: Message[]; lang: Lang }) {
+  const t = ui[lang];
   return (
     <div className="card lift p-5">
       <h2 className="mb-3 text-sm font-semibold text-slate-950">
-        Corporate Booking Thread
+        {t.messages.title}
       </h2>
       <ol className="space-y-3">
         {messages.map((m) => (
@@ -34,7 +36,7 @@ export default function BookingEmailPanel({ messages }: { messages: Message[] })
                     : "bg-slate-100 text-slate-600"
                 }`}
               >
-                {CHANNEL_LABEL[m.channel] ?? m.channel}
+                {t.messages[m.channel as keyof typeof t.messages] ?? CHANNEL_LABEL[m.channel] ?? m.channel}
               </span>
               <span>{m.sender}</span>
               <span className="text-slate-400">

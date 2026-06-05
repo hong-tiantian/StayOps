@@ -54,25 +54,31 @@ export function rulePromiseStatus(
 
   switch (promiseId) {
     case "P-001": {
-      gateSources(runner, ["room_inventory", "room_readiness"], evidence);
+      const stale = gateSources(runner, ["room_inventory", "room_readiness"], evidence);
       runner.retrieve_sop("early_check_in");
       const r = runner.check_room_readiness("king", {}, arrival);
-      const status: PromiseStatus = r.available_ready_count >= 8 ? "at_risk" : "cannot_confirm";
+      const status: PromiseStatus =
+        stale || r.available_ready_count < 8 ? "cannot_confirm" : "at_risk";
       evidence.push(
         `Readiness: ${r.available_ready_count} king room(s) ready at arrival, ${r.available_later_count} later — group of ${reservation?.room_count ?? 12} not guaranteed.`
       );
       return { status, evidence };
     }
     case "P-002": {
-      gateSources(runner, ["room_inventory", "room_readiness"], evidence);
+      const stale = gateSources(runner, ["room_inventory", "room_readiness"], evidence);
       runner.retrieve_sop("quiet_room");
       const r = runner.check_room_readiness(
         "king",
         { quiet_zone: true, away_from_elevator: true },
         arrival
       );
-      const status: PromiseStatus =
-        r.available_ready_count > 0 ? "verifiable" : r.available_later_count > 0 ? "at_risk" : "cannot_confirm";
+      const status: PromiseStatus = stale
+        ? "cannot_confirm"
+        : r.available_ready_count > 0
+          ? "verifiable"
+          : r.available_later_count > 0
+            ? "at_risk"
+            : "cannot_confirm";
       const candidates = r.matching_rooms
         .filter((m) => m.suitability !== "unsuitable")
         .map((m) => `${m.room_id} (${m.suitability})`)
@@ -83,17 +89,21 @@ export function rulePromiseStatus(
       return { status, evidence };
     }
     case "P-003": {
-      gateSources(runner, ["hotel_sop"], evidence);
+      const stale = gateSources(runner, ["hotel_sop"], evidence);
       const sop = runner.retrieve_sop("gluten_free_breakfast");
       evidence.push(`${sop[0]?.policy_id}: deadline ${sop[0]?.deadline_rule}. Notification window open — F&B can execute.`);
-      return { status: "verifiable", evidence };
+      return { status: stale ? "cannot_confirm" : "verifiable", evidence };
     }
     case "P-004": {
-      gateSources(runner, ["event_spaces"], evidence);
+      const stale = gateSources(runner, ["event_spaces"], evidence);
       runner.check_inventory("projector");
       runner.retrieve_sop("projector_setup");
       const space = runner.check_event_space("projector", "2026-07-18T14:00:00", "MR-BLUE");
-      const status: PromiseStatus = space.available && space.equipment.projector ? "verifiable" : "conflict";
+      const status: PromiseStatus = stale
+        ? "cannot_confirm"
+        : space.available && space.equipment.projector
+          ? "verifiable"
+          : "conflict";
       evidence.push(
         `MR-BLUE has projector/screen/HDMI. Setup task MUST be due ${space.recommended_task_due_at} (meeting_start - ${space.setup_lead_time_minutes}m), NOT 14:00.`
       );
@@ -107,7 +117,7 @@ export function rulePromiseStatus(
       return { status: "missing_info", evidence };
     }
     case "P-006": {
-      gateSources(runner, ["billing_accounts"], evidence);
+      const stale = gateSources(runner, ["billing_accounts"], evidence);
       runner.retrieve_sop("company_invoice");
       const billing = loadBillingAccounts().find((b) => b.booking_id === reservation?.booking_id);
       const missing: string[] = [];
@@ -115,7 +125,8 @@ export function rulePromiseStatus(
       if (!billing?.tax_id) missing.push("tax_id");
       if (!billing?.billing_address) missing.push("billing_address");
       evidence.push(`Billing account ${billing?.status ?? "incomplete"}; missing: ${missing.join(", ") || "none"}.`);
-      return { status: missing.length ? "missing_info" : "verifiable", evidence };
+      const status: PromiseStatus = missing.length ? "missing_info" : stale ? "cannot_confirm" : "verifiable";
+      return { status, evidence };
     }
     default:
       return { status: "cannot_confirm", evidence: ["No deterministic rule for this promise."] };
@@ -123,16 +134,22 @@ export function rulePromiseStatus(
 }
 
 /**
- * Freshness gate: if any required source is stale, record it. A stale required
- * source forbids a `verifiable` status (callers downgrade accordingly).
+ * Freshness gate: check each required source. Returns true if ANY is stale.
+ * A stale required source forbids a `verifiable` status — callers must downgrade
+ * to `cannot_confirm`. This is the hard safety rule: never guarantee on stale data.
  */
-function gateSources(runner: ToolRunner, sources: string[], evidence: string[]): void {
+function gateSources(runner: ToolRunner, sources: string[], evidence: string[]): boolean {
+  let stale = false;
   for (const s of sources) {
     const f = runner.check_data_freshness(s) as { freshness_status: string; age_minutes: number };
     if (f.freshness_status === "stale") {
-      evidence.push(`⚠ Source "${s}" is stale (${f.age_minutes}m old) — cannot guarantee; downgraded.`);
+      stale = true;
+      evidence.push(
+        `⚠ Source "${s}" is stale (${f.age_minutes}m old) — freshness gate forbids a guarantee; downgraded to cannot_confirm.`
+      );
     }
   }
+  return stale;
 }
 
 /**

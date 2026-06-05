@@ -1,5 +1,6 @@
 import { DecoratedTask } from "./TaskBoard";
 import { FreshnessResult, PromiseDecision, Reservation } from "@/lib/types";
+import { Lang, ui } from "@/lib/i18n";
 
 function countByStatus(decisions: PromiseDecision[], status: string) {
   return decisions.filter((d) => d.status === status).length;
@@ -14,6 +15,8 @@ export default function ManagerBriefing({
   onTrace,
   auditing,
   tracing,
+  lang,
+  reasoningSource,
 }: {
   reservation: Reservation | null;
   decisions: PromiseDecision[];
@@ -23,17 +26,20 @@ export default function ManagerBriefing({
   onTrace: () => void;
   auditing: boolean;
   tracing: boolean;
+  lang: Lang;
+  reasoningSource: "gemini" | "rules" | null;
 }) {
+  const t = ui[lang];
   const warningTasks = tasks.filter((t) => t.warning).length;
   const freshnessText = freshness.every((s) => s.freshness_status === "fresh")
-    ? "All sources fresh"
-    : "Stale source detected";
+    ? t.briefing.allFresh
+    : t.briefing.stale;
 
   const metrics = [
-    { label: "Promises", value: String(decisions.length || 6), note: "extracted from booking thread" },
-    { label: "At risk", value: String(countByStatus(decisions, "at_risk")), note: "requires manager judgment" },
-    { label: "Missing info", value: String(countByStatus(decisions, "missing_info")), note: "guest or company follow-up" },
-    { label: "Task warnings", value: String(warningTasks), note: "deadline or completion risk" },
+    { label: t.briefing.promises, value: String(decisions.length || 6), note: t.briefing.promisesNote },
+    { label: t.briefing.atRisk, value: String(countByStatus(decisions, "at_risk")), note: t.briefing.atRiskNote },
+    { label: t.briefing.missingInfo, value: String(countByStatus(decisions, "missing_info")), note: t.briefing.missingInfoNote },
+    { label: t.briefing.warnings, value: String(warningTasks), note: t.briefing.warningsNote },
   ];
 
   return (
@@ -41,29 +47,42 @@ export default function ManagerBriefing({
       <div className="grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
         <div className="flex min-h-[260px] flex-col justify-between">
           <div>
-            <div className="mb-4 inline-flex items-center rounded-full border border-white/70 bg-white/55 px-3 py-1 text-[11px] font-medium text-slate-600 backdrop-blur">
-              Manager command room · {freshnessText}
+            <div className="mb-4 flex flex-wrap items-center gap-2">
+              <div className="inline-flex items-center rounded-full border border-white/70 bg-white/55 px-3 py-1 text-[11px] font-medium text-slate-600 backdrop-blur">
+                {t.briefing.room} · {freshnessText}
+              </div>
+              <div
+                className={`inline-flex items-center rounded-full px-3 py-1 text-[11px] font-semibold ${
+                  reasoningSource === "gemini"
+                    ? "border border-emerald-200 bg-emerald-50 text-emerald-700"
+                    : "border border-slate-300 bg-slate-100 text-slate-600"
+                }`}
+              >
+                {reasoningSource === "gemini"
+                  ? lang === "zh"
+                    ? "⚡ Gemini 智能体推理"
+                    : "⚡ Reasoning: Gemini agent"
+                  : lang === "zh"
+                    ? "🛡 确定性规则(降级)"
+                    : "🛡 Deterministic policy (fallback)"}
+              </div>
             </div>
             <h1 className="max-w-3xl text-4xl font-semibold leading-[1.03] text-slate-950 sm:text-5xl">
-              Audit every guest promise before it becomes a service failure.
+              {t.briefing.title}
             </h1>
-            <p className="mt-4 max-w-2xl text-sm leading-6 text-slate-600">
-              Acme Robotics arrives with a VIP room preference, meeting-room setup, dietary requests,
-              transport, and billing needs. StayOps verifies what the hotel can safely promise,
-              routes approved actions, and traces failures back to the exact task.
-            </p>
+            <p className="mt-4 max-w-2xl text-sm leading-6 text-slate-600">{t.briefing.body}</p>
           </div>
 
           <div className="mt-6 flex flex-wrap gap-2">
             <button onClick={onRunAudit} disabled={auditing} className="btn btn-primary px-4 py-2">
-              {auditing ? "Auditing..." : "Run Promise Audit"}
+              {auditing ? t.nav.auditing : t.nav.audit}
             </button>
             <button
               onClick={onTrace}
               disabled={tracing}
               className="btn border border-slate-200/80 bg-white/75 px-4 py-2 text-slate-700 hover:bg-white"
             >
-              {tracing ? "Tracing..." : "Trace Complaint"}
+              {tracing ? t.nav.tracing : t.nav.trace}
             </button>
           </div>
         </div>
@@ -71,7 +90,7 @@ export default function ManagerBriefing({
         <div className="rounded-[24px] border border-white/75 bg-white/68 p-4 backdrop-blur-xl">
           <div className="mb-4 flex items-center justify-between">
             <div>
-              <div className="text-[11px] uppercase text-slate-400">Active stay</div>
+              <div className="text-[11px] uppercase text-slate-400">{t.briefing.activeStay}</div>
               <div className="text-sm font-semibold text-slate-900">
                 {reservation?.company_name ?? "Acme Robotics"}
               </div>
@@ -92,11 +111,9 @@ export default function ManagerBriefing({
           </div>
 
           <div className="mt-3 rounded-2xl border border-slate-200/70 bg-slate-950 p-3 text-white">
-            <div className="text-[11px] text-slate-400">Current failure chain</div>
-            <div className="mt-1 text-sm font-medium">P-002 → TASK-103 open · P-004 → wrong due time</div>
-            <p className="mt-2 text-[11px] leading-4 text-slate-300">
-              The manager sees whether approval became execution, not just whether a request was acknowledged.
-            </p>
+            <div className="text-[11px] text-slate-400">{t.briefing.failureChain}</div>
+            <div className="mt-1 text-sm font-medium">{t.briefing.failureChainValue}</div>
+            <p className="mt-2 text-[11px] leading-4 text-slate-300">{t.briefing.failureChainNote}</p>
           </div>
         </div>
       </div>

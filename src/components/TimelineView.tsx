@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { TIMELINE_FILTERS, TimelineFilter, filterTimeline } from "@/lib/timeline";
 import { RecoveryTrace } from "@/lib/types";
+import { Lang, ui } from "@/lib/i18n";
 
 const CAT: Record<string, { dot: string; ring: string; chip: string }> = {
   promise: { dot: "bg-indigo-500", ring: "ring-indigo-100", chip: "bg-indigo-50 text-indigo-600" },
@@ -13,7 +14,8 @@ const CAT: Record<string, { dot: string; ring: string; chip: string }> = {
   system: { dot: "bg-slate-400", ring: "ring-slate-100", chip: "bg-slate-100 text-slate-500" },
 };
 
-export default function TimelineView({ trace }: { trace: RecoveryTrace | null }) {
+export default function TimelineView({ trace, lang }: { trace: RecoveryTrace | null; lang: Lang }) {
+  const t = ui[lang];
   const [filter, setFilter] = useState<TimelineFilter>("All");
   const events = filterTimeline(filter);
 
@@ -26,7 +28,7 @@ export default function TimelineView({ trace }: { trace: RecoveryTrace | null })
             onClick={() => setFilter(f)}
             className={`btn ${filter === f ? "btn-primary" : "btn-ghost"}`}
           >
-            {f}
+            {t.timeline.filters[f]}
           </button>
         ))}
       </div>
@@ -64,16 +66,17 @@ export default function TimelineView({ trace }: { trace: RecoveryTrace | null })
 
       {trace && (
         <div className="card animate-fadeup border-rose-200 p-6">
-          <h3 className="mb-4 text-sm font-semibold text-rose-700">Where the promise chain broke</h3>
+          <h3 className="mb-4 text-sm font-semibold text-rose-700">{t.timeline.broke}</h3>
           <div className="space-y-5">
             {trace.matched_promises.map((m) => {
               const nodes =
                 m.promise_id === "P-002"
                   ? ["Complaint", m.promise_id, "APR-001", m.linked_task_id ?? "Task", "Not completed", "Failure"]
                   : ["Complaint", m.promise_id, m.linked_task_id ?? "Task", "Wrong due time", "Failure"];
+              const displayNodes = nodes.map((node) => t.timeline.chain[node as keyof typeof t.timeline.chain] ?? node);
               return (
                 <div key={m.promise_id}>
-                  <FlowChain nodes={nodes} />
+                  <FlowChain nodes={displayNodes} />
                   <p className="mt-2 pl-1 text-[11px] text-rose-700">{m.root_cause}</p>
                 </div>
               );
@@ -88,11 +91,11 @@ export default function TimelineView({ trace }: { trace: RecoveryTrace | null })
 function FlowChain({ nodes }: { nodes: string[] }) {
   const tone = (label: string, i: number) => {
     if (i === 0) return "bg-rose-100 text-rose-700";
-    if (label === "Failure") return "bg-rose-600 text-white";
+    if (label === "Failure" || label === "失败") return "bg-rose-600 text-white";
     if (label.startsWith("APR")) return "bg-violet-100 text-violet-700";
     if (label.startsWith("TASK")) return "bg-sky-100 text-sky-700";
     if (label.startsWith("P-")) return "bg-indigo-100 text-indigo-700";
-    if (label.includes("Not") || label.includes("Wrong")) return "bg-amber-100 text-amber-700";
+    if (label.includes("Not") || label.includes("Wrong") || label.includes("未完成") || label.includes("错误")) return "bg-amber-100 text-amber-700";
     return "bg-slate-100 text-slate-600";
   };
   return (

@@ -1,169 +1,186 @@
 # StayOps Promise Ledger
 
-**A promise verification and recovery layer for hotel operations.**
+**A promise verification and recovery layer for hotel operations — powered by a Gemini agent with deterministic policy guardrails.**
 
-StayOps Promise Ledger is **not a guest chatbot and not a task manager**. It is a promise verification and recovery layer for hotel operations. It audits guest-facing promises *before* arrival, routes only verified or approved actions to hotel teams, and — when something goes wrong — traces a complaint back to the exact broken promise and the task that failed.
+StayOps is **not a guest chatbot and not a task manager**. It is a promise verification and recovery layer. A Gemini agent reads guest-facing promises *before* arrival, autonomously gathers operational evidence with tools, and a deterministic policy layer decides what the hotel can actually commit to — routing only verified or approved actions to teams. When something goes wrong, it traces a complaint back to the exact broken promise and the task that failed.
+
+> **Design principle: Gemini proposes, deterministic policy decides.** The LLM extracts promises and gathers evidence; rules make the final, auditable call. An LLM can never upgrade a promise to a guarantee the data does not support.
 
 ## Problem
 
-Hotels do not only fail because they reply slowly. They fail because promises made in sales emails, guest messages, and internal notes never reach the right operational team — or reach it as a task with the wrong due time. StayOps inserts a verification step: *don't blindly convert requests into tasks; first verify whether the hotel should make or fulfill the promise; then create tasks only for verified or approved promises; and if a complaint happens, trace exactly where the promise chain broke.*
+Hotels do not only fail because they reply slowly. They fail because promises made in sales emails, guest messages, and internal notes never reach the right operational team — or reach it as a task with the wrong due time. StayOps inserts a verification step: *don't blindly convert requests into tasks; first verify whether the hotel should make or fulfill the promise; create tasks only for verified or approved promises; and if a complaint happens, trace exactly where the promise chain broke.*
+
+## How It Works — Agent Architecture
+
+```
+Corporate booking email + reservation
+      │
+      ▼
+┌─────────────────────────────────────────────────────────────┐
+│ A. Gemini Agent (ReAct function-calling loop)                │
+│    src/lib/agent/promiseAgent.ts                             │
+│    • Extracts every guest-facing promise from the raw email  │
+│    • AUTONOMOUSLY calls read-only tools to gather evidence:   │
+│      check_data_freshness · check_room_readiness ·           │
+│      retrieve_sop · check_event_space · check_inventory       │
+│    • Tool execution is deterministic (CSV-backed); every     │
+│      call is recorded for the UI tool-call log               │
+└─────────────────────────────────────────────────────────────┘
+      │  (proposals + evidence)
+      ▼
+┌─────────────────────────────────────────────────────────────┐
+│ B. Deterministic Policy Guardrails                           │
+│    src/lib/agent/policy.ts                                   │
+│    • Freshness gate: a stale required source can NEVER be     │
+│      verifiable — forced down to cannot_confirm               │
+│    • Missing-field rule: no required guest info ⇒ missing_info │
+│    • SOP due-time rule: e.g. projector setup must be due      │
+│      meeting_start − lead_time, not at meeting start          │
+│    • Aligns extracted promises to stable ledger ids           │
+└─────────────────────────────────────────────────────────────┘
+      │
+      ▼
+   Promise Ledger (UI) — each row shows status, evidence, owner,
+   and a "Reasoning: Gemini agent | Deterministic policy" badge
+      │
+      ▼
+   Manager approve / edit / reject  →  department tasks
+      │
+      ▼
+   Complaint  →  trace_broken_promise  →  recovery plan + postmortem
+
+   ⚠ If Gemini fails (quota / network / bad output) the audit
+     falls back to the SAME deterministic policy — the demo never breaks.
+```
+
+The two paths (Gemini agent and offline fallback) share one policy engine, so they can never disagree on the final status. Whether Gemini actually ran is surfaced in the UI via `reasoning_source: "gemini" | "rules"`.
 
 ## Demo Case
 
-A boutique hotel receives a corporate offsite booking email from **Acme Robotics** (`BKG-2026-0718-ACME`, 12 rooms, `2026-07-18`→`2026-07-20`, meeting room `MR-BLUE` 14:00–17:00). The email contains six guest-facing promises:
+A boutique hotel receives a corporate offsite booking email from **Acme Robotics** (`BKG-2026-0718-ACME`, 12 rooms, `2026-07-18`→`2026-07-20`, meeting room `MR-BLUE` 14:00–17:00) with six guest-facing promises:
 
-| Promise | Type | Status | Why |
-| --- | --- | --- | --- |
-| Early check-in | `request_noted` | `cannot_confirm` | Group readiness uncertain; cannot guarantee. |
-| Quiet king room for VP | `preference`, `risk_sensitive_request` | `at_risk` | Limited quiet-zone king inventory; needs manager approval + room lock. |
-| Gluten-free breakfast | `operational_requirement` | `verifiable` | F&B can execute if notified by D-1 17:00. |
-| Meeting room projector | `confirmed_commitment`, `operational_requirement` | `verifiable` | Equipment exists; setup task must be due 2h before meeting. |
-| Airport transfer | `missing_info_request`, `operational_requirement` | `missing_info` | Flight number / arrival time missing. |
-| Company invoice | `commercial_requirement` | `missing_info` | Billing contact / tax ID / address missing. |
+| Promise | Status | Why |
+| --- | --- | --- |
+| Early check-in | `cannot_confirm` | Group readiness uncertain; cannot guarantee. |
+| Quiet king room for VP | `at_risk` | Limited quiet-zone king inventory; needs manager approval + room lock. |
+| Gluten-free breakfast | `verifiable` | F&B can execute if notified by D-1 17:00. |
+| Meeting room projector | `verifiable` | Equipment exists; setup task must be due 2h before meeting. |
+| Airport transfer | `missing_info` | Flight number / arrival time missing. |
+| Company invoice | `missing_info` | Billing contact / tax ID / address missing. |
 
-A complaint later arrives — *"The VP was promised a quiet king room, but was placed near the elevator, and the projector was not ready when the meeting started."* — and StayOps traces it to **P-002** (front-desk room-blocking task `TASK-103` never completed → VP placed in room 402 near elevator) and **P-004** (`TASK-102` projector setup due at 14:00 instead of 12:00).
-
-## Features
-
-- **Dashboard / Booking Intake** — booking context, the original corporate email thread, a Fivetran-style data freshness panel, and a developer tool-call log.
-- **Promise Ledger** — every promise classified by type, status, evidence, risk, owner department, recommended action, approval, execution state, and linked task. Click any row for a detail drawer with the source quote, tool calls, freshness, evidence, and complaint trace.
-- **Task Board** — Kanban (Waiting for Approval / Approved / Created / In Progress / Blocked / Completed / Failed) exposing the two demo failures with warning badges.
-- **Timeline** — promise lifecycle with filters and complaint causal chains.
-- **Hotel Map** — simplified floor diagram with quiet zone, elevator markers, and VP candidate rooms; highlights the wrongly-assigned room 402 on complaint trace.
-- **Complaint Recovery** — matched promises, broken-promise trace, failure point, immediate recovery actions, guest reply draft, and postmortem/SOP fixes.
-
-## Project Docs
-
-- [Real hotel workflow](docs/real-hotel-workflow.md) — the non-AI workflow and where hotel handoffs break.
-- [Personas and permissions](docs/personas-and-permissions.md) — manager, front desk, events, sales, and demo/judge views.
-- [Demo case](docs/demo-case.md) — the Acme Robotics story and why the case is realistic.
-- [MCP integration plan](docs/mcp-integration.md) — planned Fivetran-style MCP tools and how freshness should affect agent decisions.
-- [API contract](docs/api-contract.md) — expected output schemas for promises, tasks, tool calls, complaint traces, and recovery plans.
-- [Agent decision design](docs/agent-decision-design.md) — how the agent plans tool calls, evaluates evidence, chooses next actions, and monitors failures.
+A complaint later arrives — *"The VP was promised a quiet king room, but was placed near the elevator, and the projector was not ready when the meeting started."* — and StayOps traces it to **P-002** (front-desk room-blocking task `TASK-103` never completed) and **P-004** (`TASK-102` projector setup due at 14:00 instead of 12:00).
 
 ## Tech Stack
 
-- **Next.js 14** (App Router) + **React 18** + **TypeScript**
-- **Tailwind CSS** for styling
-- **Next.js API routes** as the backend
-- **Local CSV** loaded into memory as the data layer (Fivetran/BigQuery can replace it later)
-- Deterministic **rule-engine agent** with a visible tool-call log — no external LLM required
+- **Next.js 16** (App Router) + **React 18** + **TypeScript**
+- **Tailwind CSS**
+- **Gemini 3.5 Flash on Vertex AI** via the `@google/genai` SDK, authenticated with **Application Default Credentials (ADC)** — no API key is stored (org policy requires ADC)
+- **Deterministic policy engine** (rule guardrails) — the safety layer and offline fallback
+- **Local CSV as a mock PMS** data layer, behind tool interfaces that an Opera/Cloudbeds/Mews adapter or a Fivetran → BigQuery pipeline can replace without touching agent logic
 
-## How to Run Locally
+## Setup
+
+### 1. Authenticate (ADC — no API key)
+
+```bash
+gcloud auth application-default login
+gcloud config set project <YOUR_PROJECT_ID>
+gcloud services enable aiplatform.googleapis.com
+```
+
+### 2. Configure
+
+```bash
+cp .env.example .env.local      # then set GOOGLE_CLOUD_PROJECT to your project id
+```
+
+`.env.local` holds no secrets — identity comes from ADC. It is gitignored.
+
+### 3. Run
 
 ```bash
 npm install
-npm run dev
-# open http://localhost:3000
+npm run dev        # http://localhost:3000
 ```
+
+> **No Gemini access?** The app still works: every audit falls back to the deterministic policy engine and the UI badge shows `Deterministic policy`. Gemini is an enhancement, not a hard dependency.
 
 Other scripts:
 
 ```bash
 npm run typecheck   # tsc --noEmit
+npm run lint        # tsc --noEmit (Next 16 removed `next lint`; ESLint config is a future add)
 npm run build       # production build
-npm start           # run production build
+npm run eval        # score the agent against evals/goldens.json (dev server must be running)
 ```
 
-## Data Model
+## Evaluating the Agent
 
-All synthetic data lives in `/data` as CSV (loaded by `src/lib/data.ts`):
+How do you know the agent is actually good? Score it against a golden set instead of eyeballing it.
 
-```
-messages.csv            reservations.csv      room_inventory.csv
-room_readiness.csv      housekeeping_roster.csv  hotel_sop.csv
-event_spaces.csv        billing_accounts.csv  transport_vendors.csv
-sync_status.csv         approval_records.csv  ops_tasks.csv
-promise_ledger.csv
+```bash
+npm run dev          # in one terminal
+npm run eval         # in another
 ```
 
-Runtime task creation/approval is held in an in-memory overlay so the demo is repeatable without mutating CSVs.
+`scripts/eval.mjs` runs a real audit (`?force=1` bypasses the cache) and scores it against `evals/goldens.json`:
+
+```
+Status accuracy        6/6  (100%)     ← classification correct
+🚨 Overpromise (safety) 0/6  ✅ none    ← never "verifiable" on unsupported data (the key safety metric)
+Approval compliance    6/6  (100%)     ← right items flagged for manager approval
+Agent tool coverage    6/6  (100%)     ← Gemini called the tools each promise needed
+Evidence keyword hits  3/3             ← e.g. projector evidence must mention "12:00"
+```
+
+To add a new scenario, add one entry to `evals/goldens.json` (expected status, required tools, approval, `forbid_verifiable`, evidence keywords) — the domain expert defines "correct", the agent has to pass.
 
 ## Tool Contracts
 
-Implemented in `src/lib/tools.ts` (each call is recorded with input/output/timestamp and shown in the UI):
+Read-only evidence tools the agent may call (`src/lib/tools.ts`, exposed to Gemini in `src/lib/agent/agentTools.ts`). Write actions (`create_ops_task`) are **not** exposed to the model — task creation happens only after a manager approves.
 
 | Tool | Purpose |
 | --- | --- |
-| `check_data_freshness(source)` | Freshness gate vs `sync_status.csv` at fixed `DEMO_NOW = 2026-07-18T10:00:00Z`. |
+| `check_data_freshness(source)` | Freshness gate vs `sync_status.csv` at fixed `DEMO_NOW`. |
 | `get_reservation(booking_id)` | Reservation record. |
 | `search_messages(booking_id)` | All messages on the booking. |
-| `check_room_readiness(type, constraints, arrival)` | Suitability of rooms against quiet/elevator constraints + readiness. |
-| `check_inventory(item_type)` | Equipment availability (projector derived from event space). |
+| `check_room_readiness(type, constraints, arrival)` | Room suitability vs quiet/elevator constraints + readiness. |
+| `check_inventory(item_type)` | Equipment availability. |
 | `retrieve_sop(promise_type)` | Matching SOP rules. |
-| `check_event_space(req, date_time, space_id)` | Event-space equipment + `recommended_task_due_at` (meeting_start − lead time). |
-| `create_ops_task(dept, desc, due_at, promise_id)` | Creates a department task. |
-| `log_promise_decision(id, status, evidence, action)` | Records a ledger decision. |
-| `trace_broken_promise(text, booking_id)` | Traces a complaint to broken promises + recovery plan. |
+| `check_event_space(req, date_time, space_id)` | Equipment + `recommended_task_due_at`. |
 
-### Freshness Gate
+## Data Model
 
-`src/lib/freshness.ts` evaluates each source against its `max_allowed_age_minutes`. A stale required source prevents a `verifiable` status (downgrade to `at_risk` / `cannot_confirm`) and suppresses guarantee language. All demo sources are fresh at `DEMO_NOW`.
+All synthetic data lives in `/data` as CSV (loaded by `src/lib/data.ts`), acting as a mock PMS. Runtime task/approval mutations live in an in-memory overlay so the demo is repeatable.
 
-## Agent Workflow
+## Status & Roadmap
 
-```
-Corporate booking email
-→ check_data_freshness (gate)
-→ get_reservation / search_messages
-→ per-promise: check_room_readiness / check_inventory / check_event_space / retrieve_sop
-→ classify (type + status + evidence)  [src/lib/classifier.ts → runPromiseAudit]
-→ Promise Ledger → manager approve/edit/reject
-→ create department tasks (only for verified/approved)
-→ Task Board / Timeline / Hotel Map
-→ complaint → trace_broken_promise  [src/lib/recovery.ts → traceComplaint]
-→ recovery plan + postmortem
-```
+**Done**
+- Gemini 3.5 Flash agent: real ReAct function-calling loop (`reasoning_source: gemini` verified)
+- Deterministic policy guardrails + freshness gate + automatic fallback
+- Eval harness with golden set and safety (overpromise) metric
+- Bilingual operational UI: ledger, task board, timeline, hotel map, complaint recovery
 
-## API
-
-| Method & Path | Purpose |
-| --- | --- |
-| `GET /api/bookings/:booking_id` | Reservation + approvals. |
-| `GET /api/messages/:booking_id` | Messages. |
-| `GET /api/freshness` | All source freshness. |
-| `POST /api/audit/:booking_id` | Run promise audit → decisions + tool calls + freshness. |
-| `GET /api/tasks?booking_id=` | Task board data. |
-| `POST /api/tasks` | Create a task. |
-| `POST /api/promises/:promise_id/approve` | Approve a promise (keeps `TASK-103` open for the demo). |
-| `POST /api/complaints/trace` | Trace complaint → recovery plan. |
-
-## Screenshots
-
-_Placeholder — add screenshots of the Dashboard, Promise Ledger, Task Board, Timeline, Hotel Map, and Complaint Recovery views here._
-
-## Demo Script
-
-```
-0:00–0:25  Hotels do not only fail because they reply slowly. They fail because promises made in
-           sales emails, guest messages, and internal notes do not reach the right operational team.
-0:25–0:50  Corporate offsite for Acme Robotics: 12 rooms, a meeting room, early arrival, quiet king
-           for the VP, gluten-free breakfast, projector, airport transfer, and company invoice.
-0:50–1:10  StayOps first checks synced operational data freshness — inventory, SOP, event space,
-           billing, transport, tasks, and approvals are visible before any decision.
-1:10–1:50  The Promise Ledger classifies each promise. Early check-in cannot be confirmed. Quiet king
-           is at risk. Breakfast and projector are verifiable. Transfer and invoice are missing info.
-1:50–2:15  The manager approves the risky items. StayOps creates the right tasks, but never creates
-           guarantee language for early check-in.
-2:15–2:35  The map shows why the quiet king is risky: one room near the elevator, one better candidate
-           not ready yet. The timeline shows the full promise chain.
-2:35–2:55  A complaint arrives: VP near the elevator, projector not ready. StayOps traces the broken
-           promises to an incomplete front-desk room-blocking task and an incorrect event setup due time.
-2:55–3:00  StayOps audits, executes, and recovers hotel promises before they become service failures.
-```
+**Planned (hackathon roadmap)**
+- **Fivetran MCP**: replace CSV freshness with a real partner MCP server (adapter sketched in [docs/mcp-integration.md](docs/mcp-integration.md)); CSV stays as offline fallback.
+- **Google Cloud Agent Builder**: current orchestration is a custom ReAct loop in Next API routes; Agent Builder is the documented integration target.
+- More real front-desk scenarios (VIP upgrade, room move, maintenance, lost & found, long-stay pricing) with approval tiers.
+- A visible self-learning loop: manager approve/edit/reject → learned preferences/skills.
+- Real PMS adapter (Opera/Cloudbeds/Mews) behind the existing tool interfaces.
 
 ## Limitations
 
-- Single hard-coded demo booking; the agent is deterministic by design (no live LLM).
-- Data freshness uses a fixed `DEMO_NOW`; CSV is the source of truth.
-- Runtime task/approval mutations live in memory and reset on server restart.
-- The hotel map is a simplified diagram, not a real floor plan.
+- Single demo booking; the policy layer aligns promises to stable ids `P-001…P-006`.
+- Gemini 3.x **Pro** is not enabled on the free-tier project; the agent uses **Gemini 3.5 Flash** (a Gemini 3 thinking model). Swap via `GEMINI_MODEL` when Pro access is granted.
+- Free-tier Gemini quota is low; the agent uses exponential backoff and caches successful audits.
+- Data freshness uses a fixed `DEMO_NOW`; the freshness gate logic is real, but all demo sources are currently fresh.
+- MCP freshness and Agent Builder orchestration are planned, not yet integrated (see Roadmap).
 
-## Future Work
+## Project Docs
 
-- Replace the CSV layer with the real Fivetran connectors / BigQuery behind the same interfaces.
-- Optional LLM wrapper for classification/explanation with the deterministic rule engine as fallback.
-- Persist tasks/approvals (SQLite/JSON) and support multiple bookings.
+- [Agent decision design](docs/agent-decision-design.md)
+- [MCP integration plan](docs/mcp-integration.md)
+- [API contract](docs/api-contract.md) · [Demo case](docs/demo-case.md) · [Real hotel workflow](docs/real-hotel-workflow.md) · [Personas & permissions](docs/personas-and-permissions.md)
 
 ## License
 
