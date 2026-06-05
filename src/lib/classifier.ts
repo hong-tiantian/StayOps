@@ -61,6 +61,7 @@ interface LedgerRow {
   recommended_action: string;
   approval_required: boolean;
   execution_state: string;
+  category: string;
 }
 
 /** Build a PromiseDecision from a ledger row + an authoritative status verdict. */
@@ -129,7 +130,7 @@ async function runAgentAudit(booking_id: string): Promise<AuditResult> {
   const decisions: PromiseDecision[] = ledger.map((row) => {
     const proposal = proposalById.get(row.promise_id);
     const policyRunner = new ToolRunner();
-    const verdict = rulePromiseStatus(row.promise_id, policyRunner, reservation);
+    const verdict = rulePromiseStatus(row.category, policyRunner, reservation);
     const { overruled } = reconcileStatus(verdict.status, proposal?.proposed_status);
 
     const evidence = [row.evidence, ...verdict.evidence];
@@ -160,7 +161,7 @@ export function runDeterministicAudit(booking_id: string): AuditResult {
 
   const decisions: PromiseDecision[] = ledger.map((row) => {
     const policyRunner = new ToolRunner();
-    const verdict = rulePromiseStatus(row.promise_id, policyRunner, reservation);
+    const verdict = rulePromiseStatus(row.category, policyRunner, reservation);
     allCalls.push(...policyRunner.calls);
     return buildDecision(row, verdict.status, [row.evidence, ...verdict.evidence], policyRunner.calls);
   });
@@ -170,6 +171,11 @@ export function runDeterministicAudit(booking_id: string): AuditResult {
 
 /** Caches successful agent audits so repeated demo runs return instantly. */
 const auditCache = new Map<string, AuditResult>();
+
+/** Clear cached audits — called when demo state changes (e.g. stale toggle). */
+export function clearAuditCache(): void {
+  auditCache.clear();
+}
 
 /**
  * Entry point. Returns a cached agent result when available; otherwise tries the

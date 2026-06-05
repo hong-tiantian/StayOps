@@ -213,6 +213,8 @@ export interface PromiseLedgerRow {
   recommended_action: string;
   approval_required: boolean;
   execution_state: string;
+  /** Promise category (early_check_in, quiet_room, upgrade, parking, ...) — drives policy rules. */
+  category: string;
 }
 
 export interface FreshnessResult {

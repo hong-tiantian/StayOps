@@ -99,6 +99,18 @@ export default function Page() {
     [refreshTasks]
   );
 
+  const toggleStaleSource = useCallback(
+    async (source: string) => {
+      await fetch("/api/freshness/toggle", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ source }),
+      });
+      await runAudit(true); // cache cleared server-side; re-audit shows the downgrade
+    },
+    [runAudit]
+  );
+
   const traceComplaint = useCallback(
     async (text: string) => {
       setTracing(true);
@@ -185,7 +197,7 @@ export default function Page() {
             reasoningSource={reasoningSource}
           />
           <BookingHeader reservation={reservation} lang={lang} />
-          <DataFreshnessPanel sources={freshness} demoNow={demoNow} lang={lang} />
+          <DataFreshnessPanel sources={freshness} demoNow={demoNow} lang={lang} onToggle={toggleStaleSource} />
           <div className="grid gap-4 lg:grid-cols-2">
             <BookingEmailPanel messages={messages} lang={lang} />
             <SpotlightCard className="p-4">

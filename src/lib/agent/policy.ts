@@ -43,7 +43,7 @@ export interface RuleVerdict {
  * SOURCE OF TRUTH for status — agent proposals are reconciled against it.
  */
 export function rulePromiseStatus(
-  promiseId: string,
+  category: string,
   runner: ToolRunner,
   reservation: Reservation | null
 ): RuleVerdict {
@@ -52,8 +52,8 @@ export function rulePromiseStatus(
     : KNOWN_ARRIVAL;
   const evidence: string[] = [];
 
-  switch (promiseId) {
-    case "P-001": {
+  switch (category) {
+    case "early_check_in": {
       const stale = gateSources(runner, ["room_inventory", "room_readiness"], evidence);
       runner.retrieve_sop("early_check_in");
       const r = runner.check_room_readiness("king", {}, arrival);
@@ -64,7 +64,7 @@ export function rulePromiseStatus(
       );
       return { status, evidence };
     }
-    case "P-002": {
+    case "quiet_room": {
       const stale = gateSources(runner, ["room_inventory", "room_readiness"], evidence);
       runner.retrieve_sop("quiet_room");
       const r = runner.check_room_readiness(
@@ -88,13 +88,13 @@ export function rulePromiseStatus(
       );
       return { status, evidence };
     }
-    case "P-003": {
+    case "gluten_free_breakfast": {
       const stale = gateSources(runner, ["hotel_sop"], evidence);
       const sop = runner.retrieve_sop("gluten_free_breakfast");
       evidence.push(`${sop[0]?.policy_id}: deadline ${sop[0]?.deadline_rule}. Notification window open — F&B can execute.`);
       return { status: stale ? "cannot_confirm" : "verifiable", evidence };
     }
-    case "P-004": {
+    case "projector_setup": {
       const stale = gateSources(runner, ["event_spaces"], evidence);
       runner.check_inventory("projector");
       runner.retrieve_sop("projector_setup");
@@ -109,14 +109,14 @@ export function rulePromiseStatus(
       );
       return { status, evidence };
     }
-    case "P-005": {
+    case "airport_transfer": {
       gateSources(runner, ["transport_vendors"], evidence);
       runner.retrieve_sop("airport_transfer");
       const missing = ["flight_number", "arrival_time", "passenger_count", "phone_number"];
       evidence.push(`Vendor TR-01 available, but required fields missing: ${missing.join(", ")}.`);
       return { status: "missing_info", evidence };
     }
-    case "P-006": {
+    case "company_invoice": {
       const stale = gateSources(runner, ["billing_accounts"], evidence);
       runner.retrieve_sop("company_invoice");
       const billing = loadBillingAccounts().find((b) => b.booking_id === reservation?.booking_id);

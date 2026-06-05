@@ -17,6 +17,26 @@ export const freshnessRules: Record<string, number> = {
   approval_records: 15,
 };
 
+// Demo-only override: force a source to read as stale so judges can watch the
+// freshness gate downgrade a promise live. Held in memory (demo-scoped).
+const g = globalThis as unknown as { __stayops_stale__?: Set<string> };
+function staleSet(): Set<string> {
+  if (!g.__stayops_stale__) g.__stayops_stale__ = new Set();
+  return g.__stayops_stale__;
+}
+export function toggleStale(source_name: string): boolean {
+  const s = staleSet();
+  if (s.has(source_name)) {
+    s.delete(source_name);
+    return false;
+  }
+  s.add(source_name);
+  return true;
+}
+export function isOverriddenStale(source_name: string): boolean {
+  return staleSet().has(source_name);
+}
+
 export function checkDataFreshness(source_name: string): FreshnessResult {
   const rows = loadSyncStatus();
   const row = rows.find((r) => r.source_name === source_name);
@@ -35,12 +55,13 @@ export function checkDataFreshness(source_name: string): FreshnessResult {
   const last = new Date(row.last_synced_at).getTime();
   const age_minutes = Math.round((now - last) / 60000);
   const max = row.max_allowed_age_minutes;
+  const fresh = age_minutes <= max && !isOverriddenStale(source_name);
   return {
     source_name,
     last_synced_at: row.last_synced_at,
     max_allowed_age_minutes: max,
     age_minutes,
-    freshness_status: age_minutes <= max ? "fresh" : "stale",
+    freshness_status: fresh ? "fresh" : "stale",
   };
 }
 
