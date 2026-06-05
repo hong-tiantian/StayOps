@@ -13,6 +13,7 @@ import HotelMap from "@/components/HotelMap";
 import ComplaintRecovery from "@/components/ComplaintRecovery";
 import ToolCallLog from "@/components/ToolCallLog";
 import SpotlightCard from "@/components/SpotlightCard";
+import ManagerBriefing from "@/components/ManagerBriefing";
 import {
   FreshnessResult,
   Message,
@@ -21,23 +22,29 @@ import {
   Reservation,
   ToolCall,
 } from "@/lib/types";
+import { Lang, ui } from "@/lib/i18n";
 
 const BOOKING_ID = "BKG-2026-0718-ACME";
-
-const TABS: TabDef[] = [
-  { key: "dashboard", label: "Dashboard" },
-  { key: "ledger", label: "Promise Ledger" },
-  { key: "tasks", label: "Task Board" },
-  { key: "timeline", label: "Timeline" },
-  { key: "map", label: "Hotel Map" },
-  { key: "recovery", label: "Complaint Recovery" },
-];
 
 const DEFAULT_COMPLAINT =
   "The VP was promised a quiet king room, but was placed near the elevator, and the projector was not ready when the meeting started.";
 
 export default function Page() {
+  const [lang, setLang] = useState<Lang>("en");
   const [activeTab, setActiveTab] = useState("dashboard");
+  const t = ui[lang];
+
+  const tabs: TabDef[] = useMemo(
+    () => [
+      { key: "dashboard", label: t.nav.dashboard },
+      { key: "ledger", label: t.nav.ledger },
+      { key: "tasks", label: t.nav.tasks },
+      { key: "timeline", label: t.nav.timeline },
+      { key: "map", label: t.nav.map },
+      { key: "recovery", label: t.nav.recovery },
+    ],
+    [t]
+  );
 
   const [reservation, setReservation] = useState<Reservation | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -47,6 +54,7 @@ export default function Page() {
 
   const [decisions, setDecisions] = useState<PromiseDecision[]>([]);
   const [auditCalls, setAuditCalls] = useState<ToolCall[]>([]);
+  const [reasoningSource, setReasoningSource] = useState<"gemini" | "rules" | null>(null);
   const [tasks, setTasks] = useState<DecoratedTask[]>([]);
   const [approved, setApproved] = useState<Set<string>>(new Set());
 
@@ -71,6 +79,7 @@ export default function Page() {
       setDecisions(j.decisions);
       setAuditCalls(j.tool_calls);
       setFreshness(j.freshness_summary);
+      setReasoningSource(j.reasoning_source ?? null);
       await refreshTasks();
       if (!silent) {
         setAuditing(false);
@@ -147,7 +156,7 @@ export default function Page() {
 
   return (
     <AppShell
-      tabs={TABS}
+      tabs={tabs}
       activeTab={activeTab}
       onTab={setActiveTab}
       bookingId={BOOKING_ID}
@@ -157,19 +166,30 @@ export default function Page() {
       onTrace={() => traceComplaint(DEFAULT_COMPLAINT)}
       auditing={auditing}
       tracing={tracing}
+      lang={lang}
+      onLang={setLang}
     >
       {activeTab === "dashboard" && (
-        <div className="space-y-4">
-          <BookingHeader reservation={reservation} />
-          <DataFreshnessPanel sources={freshness} demoNow={demoNow} />
+        <div className="space-y-5">
+          <ManagerBriefing
+            reservation={reservation}
+            decisions={decisions}
+            tasks={tasks}
+            freshness={freshness}
+            onRunAudit={() => runAudit(false)}
+            onTrace={() => traceComplaint(DEFAULT_COMPLAINT)}
+            auditing={auditing}
+            tracing={tracing}
+            lang={lang}
+            reasoningSource={reasoningSource}
+          />
+          <BookingHeader reservation={reservation} lang={lang} />
+          <DataFreshnessPanel sources={freshness} demoNow={demoNow} lang={lang} />
           <div className="grid gap-4 lg:grid-cols-2">
-            <BookingEmailPanel messages={messages} />
+            <BookingEmailPanel messages={messages} lang={lang} />
             <SpotlightCard className="p-4">
-              <h2 className="mb-1 text-sm font-semibold text-slate-900">Activity & Audit Trail</h2>
-              <p className="mb-3 text-[11px] text-slate-400">
-                Every promise decision is backed by a verified, evidence-citing step. Switch on
-                “Technical view” to inspect the underlying engine call.
-              </p>
+              <h2 className="mb-1 text-sm font-semibold text-slate-900">{t.activity.title}</h2>
+              <p className="mb-3 text-[11px] text-slate-400">{t.activity.body}</p>
               <ToolCallLog calls={auditCalls} dense />
             </SpotlightCard>
           </div>
@@ -183,12 +203,13 @@ export default function Page() {
           onSelect={setSelected}
           onApprove={approve}
           highlightIds={ledgerHighlights}
+          lang={lang}
         />
       )}
 
-      {activeTab === "tasks" && <TaskBoard tasks={tasks} highlightIds={taskHighlights} />}
+      {activeTab === "tasks" && <TaskBoard tasks={tasks} highlightIds={taskHighlights} lang={lang} />}
 
-      {activeTab === "timeline" && <TimelineView trace={trace} />}
+      {activeTab === "timeline" && <TimelineView trace={trace} lang={lang} />}
 
       {activeTab === "map" && (
         <HotelMap assignedRoom={trace ? "402" : undefined} highlight={!!trace} />
@@ -200,6 +221,7 @@ export default function Page() {
           toolCalls={traceCalls}
           onTrace={traceComplaint}
           busy={tracing}
+          lang={lang}
         />
       )}
 
@@ -210,6 +232,7 @@ export default function Page() {
         trace={trace}
         onApprove={approve}
         onClose={() => setSelected(null)}
+        lang={lang}
       />
     </AppShell>
   );

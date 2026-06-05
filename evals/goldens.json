@@ -1,0 +1,53 @@
+{
+  "_comment": "Golden expectations per promise. Edit these as the domain expert — they define what 'correct' means for the agent. forbid_verifiable=true means the agent must NEVER mark this promise verifiable (overpromise guard).",
+  "BKG-2026-0718-ACME": {
+    "P-001": {
+      "label": "Early check-in for 12-room group",
+      "expected_status": "cannot_confirm",
+      "required_tools": ["check_data_freshness", "retrieve_sop", "check_room_readiness"],
+      "approval_required": true,
+      "forbid_verifiable": true,
+      "evidence_must_mention": []
+    },
+    "P-002": {
+      "label": "Quiet king for VP away from elevator",
+      "expected_status": "at_risk",
+      "required_tools": ["check_data_freshness", "retrieve_sop", "check_room_readiness"],
+      "approval_required": true,
+      "forbid_verifiable": false,
+      "evidence_must_mention": []
+    },
+    "P-003": {
+      "label": "Gluten-free breakfast",
+      "expected_status": "verifiable",
+      "required_tools": ["retrieve_sop"],
+      "approval_required": false,
+      "forbid_verifiable": false,
+      "evidence_must_mention": []
+    },
+    "P-004": {
+      "label": "Projector in meeting room",
+      "expected_status": "verifiable",
+      "required_tools": ["check_event_space", "retrieve_sop"],
+      "approval_required": false,
+      "forbid_verifiable": false,
+      "evidence_must_mention": ["12:00"]
+    },
+    "P-005": {
+      "label": "Airport transfer (missing flight info)",
+      "expected_status": "missing_info",
+      "required_tools": ["check_data_freshness", "retrieve_sop"],
+      "approval_required": false,
+      "forbid_verifiable": true,
+      "evidence_must_mention": ["flight_number"]
+    },
+    "P-006": {
+      "label": "Company invoice (missing billing info)",
+      "expected_status": "missing_info",
+      "required_tools": ["check_data_freshness", "retrieve_sop"],
+      "approval_required": false,
+      "forbid_verifiable": true,
+      "evidence_must_mention": ["tax_id"]
+    }
+  }
+}
