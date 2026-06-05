@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { phoenixCallJson } from "@/lib/mcp/phoenixClient";
+import { feedbackSummary } from "@/lib/learning/feedbackStore";
 
 export const dynamic = "force-dynamic";
 
@@ -15,6 +16,7 @@ interface PhoenixProject {
  * finds about itself — the runtime "meaningful use" of the partner MCP.
  */
 export async function GET() {
+  const learning = feedbackSummary(); // local — always available
   try {
     const projects = await phoenixCallJson<PhoenixProject[]>("list-projects");
     const self = projects.find((p) => p.name === "stayops") ?? null;
@@ -23,9 +25,10 @@ export async function GET() {
       source: "@arizeai/phoenix-mcp",
       self_project: self,
       all_projects: projects.map((p) => p.name),
+      learning,
     });
   } catch (err) {
     // Degrade gracefully — the dashboard treats this as "MCP unavailable".
-    return NextResponse.json({ ok: false, source: "@arizeai/phoenix-mcp", error: String(err) });
+    return NextResponse.json({ ok: false, source: "@arizeai/phoenix-mcp", error: String(err), learning });
   }
 }
