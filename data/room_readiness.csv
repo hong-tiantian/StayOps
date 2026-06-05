@@ -1,0 +1,7 @@
+room_id,date,clean_status,estimated_ready_at,inspected,assigned_housekeeper
+401,2026-07-18,occupied_until_12_00,2026-07-18T13:00:00,false,HK-02
+402,2026-07-18,ready,2026-07-18T10:15:00,true,HK-01
+504,2026-07-18,dirty_until_12_30,2026-07-18T13:15:00,false,HK-03
+506,2026-07-18,ready,2026-07-18T10:30:00,true,HK-01
+301,2026-07-18,ready,2026-07-18T10:00:00,true,HK-04
+302,2026-07-18,dirty_until_11_45,2026-07-18T12:30:00,false,HK-04

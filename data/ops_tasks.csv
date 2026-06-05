@@ -1,0 +1,6 @@
+task_id,booking_id,source_promise_id,department,description,due_at,status,owner,completed_at
+TASK-101,BKG-2026-0718-ACME,P-003,fb,"Notify kitchen: gluten-free breakfast for two Acme attendees.",2026-07-17T17:00:00,completed,fb_lead@hotel.test,2026-07-17T16:22:00
+TASK-102,BKG-2026-0718-ACME,P-004,events,"Set up projector, screen, and HDMI adapter in MR-BLUE.",2026-07-18T14:00:00,open,events@hotel.test,
+TASK-103,BKG-2026-0718-ACME,P-002,front_desk,"Lock quiet king room away from elevator for Acme VP.",2026-07-17T18:00:00,open,frontdesk@hotel.test,
+TASK-104,BKG-2026-0718-ACME,P-005,sales,"Ask Acme for flight number, arrival time, passenger count, and phone number for airport transfer.",2026-07-17T12:00:00,open,sales@hotel.test,
+TASK-105,BKG-2026-0718-ACME,P-006,sales,"Ask Acme for billing contact, tax ID, and billing address for company invoice.",2026-07-20T10:00:00,open,sales@hotel.test,

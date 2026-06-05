@@ -1,0 +1,2 @@
+space_id,date,start_time,end_time,capacity,projector,screen,hdmi_adapter,setup_lead_time_minutes,status
+MR-BLUE,2026-07-18,14:00,17:00,24,true,true,true,120,booked_for_acme

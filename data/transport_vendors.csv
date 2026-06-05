@@ -1,0 +1,2 @@
+vendor_id,vendor_name,date,available_vehicle_count,requires_flight_number,requires_arrival_time,status
+TR-01,Madrid Executive Transfers,2026-07-18,2,true,true,available
