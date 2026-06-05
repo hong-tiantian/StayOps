@@ -5,3 +5,6 @@ SOP-FB-003,gluten_free_breakfast,"Dietary restrictions must be sent to F&B by 17
 SOP-EVT-004,projector_setup,"Projector setup must be completed 120 minutes before meeting start.",false,events,"meeting_start_minus_120_minutes"
 SOP-TRN-005,airport_transfer,"Airport transfer requires flight number, arrival time, passenger count, and phone number.",false,concierge,"arrival_minus_1_day"
 SOP-BIL-006,company_invoice,"Company invoice requires billing contact, legal company name, tax ID, and billing address.",false,sales,"departure_date"
+SOP-UPG-007,upgrade,"Free room upgrades require manager approval; OTA bookings are not guaranteed an upgrade.",true,front_desk,"arrival_minus_1_day"
+SOP-FLR-008,high_floor,"High-floor room preferences are honored subject to availability and readiness.",false,front_desk,"arrival_time"
+SOP-PRK-009,parking,"Parking requires the vehicle plate and arrival time, and is subject to availability.",false,front_desk,"arrival_time"

@@ -16,20 +16,24 @@ import { PromiseStatus, Reservation } from "../types";
 
 const KNOWN_ARRIVAL = "2026-07-18T11:00:00";
 
-/** Keyword matchers aligning an extracted promise to the stable ledger id. */
-const LEDGER_MATCHERS: Array<{ id: string; test: (t: string) => boolean }> = [
-  { id: "P-001", test: (t) => /early|check[- ]?in|arrive|11am|11 am/.test(t) },
-  { id: "P-002", test: (t) => /quiet|elevator|vp\b|king room/.test(t) },
-  { id: "P-003", test: (t) => /gluten|breakfast|dietary|f&b|food/.test(t) },
-  { id: "P-004", test: (t) => /projector|meeting room|av\b|screen|hdmi/.test(t) },
-  { id: "P-005", test: (t) => /transfer|airport|flight|pickup|mad\b/.test(t) },
-  { id: "P-006", test: (t) => /invoice|billing|tax|company account/.test(t) },
+/** Keyword matchers aligning an extracted promise to a promise CATEGORY.
+ *  Category-based (not booking-specific id) so any booking's promises align. */
+const CATEGORY_MATCHERS: Array<{ category: string; test: (t: string) => boolean }> = [
+  { category: "early_check_in", test: (t) => /early|check[- ]?in|arrive|11am|11 am/.test(t) },
+  { category: "high_floor", test: (t) => /high[- ]?floor|upper floor|top floor/.test(t) },
+  { category: "quiet_room", test: (t) => /quiet|elevator|vp\b/.test(t) },
+  { category: "gluten_free_breakfast", test: (t) => /gluten|breakfast|dietary|f&b|food/.test(t) },
+  { category: "projector_setup", test: (t) => /projector|meeting room|av\b|screen|hdmi/.test(t) },
+  { category: "airport_transfer", test: (t) => /transfer|airport|flight|pickup|mad\b/.test(t) },
+  { category: "company_invoice", test: (t) => /invoice|billing|tax|company account/.test(t) },
+  { category: "upgrade", test: (t) => /upgrade|suite/.test(t) },
+  { category: "parking", test: (t) => /parking|car park|garage|vehicle/.test(t) },
 ];
 
-/** Map an extracted promise text to a stable P-00x id, or null if none match. */
-export function alignPromiseId(promiseText: string): string | null {
+/** Map an extracted promise text to a promise category, or null if none match. */
+export function alignPromiseCategory(promiseText: string): string | null {
   const t = promiseText.toLowerCase();
-  return LEDGER_MATCHERS.find((m) => m.test(t))?.id ?? null;
+  return CATEGORY_MATCHERS.find((m) => m.test(t))?.category ?? null;
 }
 
 export interface RuleVerdict {
@@ -127,6 +131,39 @@ export function rulePromiseStatus(
       evidence.push(`Billing account ${billing?.status ?? "incomplete"}; missing: ${missing.join(", ") || "none"}.`);
       const status: PromiseStatus = missing.length ? "missing_info" : stale ? "cannot_confirm" : "verifiable";
       return { status, evidence };
+    }
+    case "upgrade": {
+      const stale = gateSources(runner, ["room_inventory"], evidence);
+      runner.retrieve_sop("upgrade");
+      evidence.push(
+        "SOP-UPG-007: free upgrades require manager approval; OTA bookings are not guaranteed an upgrade."
+      );
+      return { status: stale ? "cannot_confirm" : "needs_approval", evidence };
+    }
+    case "high_floor": {
+      const stale = gateSources(runner, ["room_inventory", "room_readiness"], evidence);
+      runner.retrieve_sop("high_floor");
+      const r = runner.check_room_readiness("king", { quiet_zone: true, high_floor: true }, arrival);
+      const status: PromiseStatus = stale
+        ? "cannot_confirm"
+        : r.available_ready_count > 0
+          ? "verifiable"
+          : r.available_later_count > 0
+            ? "at_risk"
+            : "cannot_confirm";
+      const candidates = r.matching_rooms
+        .filter((m) => m.suitability !== "unsuitable")
+        .map((m) => m.room_id)
+        .join(", ");
+      evidence.push(`High-floor quiet candidates: ${candidates || "none"}; ${r.available_ready_count} ready now.`);
+      return { status, evidence };
+    }
+    case "parking": {
+      runner.retrieve_sop("parking");
+      evidence.push(
+        "SOP-PRK-009: parking requires vehicle plate and arrival time — not provided in the booking message."
+      );
+      return { status: "missing_info", evidence };
     }
     default:
       return { status: "cannot_confirm", evidence: ["No deterministic rule for this promise."] };

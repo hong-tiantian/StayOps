@@ -40,6 +40,7 @@ export const AGENT_TOOL_DECLARATIONS: FunctionDeclaration[] = [
         room_type: { type: Type.STRING, description: 'e.g. "king" or "twin".' },
         quiet_zone: { type: Type.BOOLEAN, description: "Require a quiet-zone room." },
         away_from_elevator: { type: Type.BOOLEAN, description: "Require away from elevator." },
+        high_floor: { type: Type.BOOLEAN, description: "Require a high floor (4th floor or above)." },
         arrival_time: { type: Type.STRING, description: "ISO local arrival, e.g. 2026-07-18T11:00:00." },
       },
       required: ["room_type"],
@@ -105,6 +106,7 @@ export function dispatchTool(name: string, args: ToolArgs, runner: ToolRunner): 
         {
           quiet_zone: Boolean(args.quiet_zone),
           away_from_elevator: Boolean(args.away_from_elevator),
+          high_floor: Boolean(args.high_floor),
         },
         String(args.arrival_time ?? "2026-07-18T11:00:00")
       );

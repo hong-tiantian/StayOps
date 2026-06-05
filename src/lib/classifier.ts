@@ -2,7 +2,7 @@ import { loadReservations, loadPromiseLedger, getOpsTasks } from "./data";
 import { ToolRunner } from "./tools";
 import { allFreshness } from "./freshness";
 import { runPromiseAgent, AgentProposal } from "./agent/promiseAgent";
-import { rulePromiseStatus, alignPromiseId, reconcileStatus } from "./agent/policy";
+import { rulePromiseStatus, alignPromiseCategory, reconcileStatus } from "./agent/policy";
 import { isFastTrack } from "./learning/feedbackStore";
 import { Department, PromiseDecision, PromiseStatus, PromiseType, ToolCall } from "./types";
 
@@ -120,15 +120,15 @@ async function runAgentAudit(booking_id: string): Promise<AuditResult> {
   const agent = await runPromiseAgent(messages, reservation);
 
   // Index agent proposals by the stable ledger id they align to.
-  const proposalById = new Map<string, AgentProposal>();
+  const proposalByCategory = new Map<string, AgentProposal>();
   for (const p of agent.proposals) {
-    const id = alignPromiseId(p.promise_text);
-    if (id && !proposalById.has(id)) proposalById.set(id, p);
+    const cat = alignPromiseCategory(p.promise_text);
+    if (cat && !proposalByCategory.has(cat)) proposalByCategory.set(cat, p);
   }
 
   const ledger = loadPromiseLedger().filter((p) => p.booking_id === booking_id);
   const decisions: PromiseDecision[] = ledger.map((row) => {
-    const proposal = proposalById.get(row.promise_id);
+    const proposal = proposalByCategory.get(row.category);
     const policyRunner = new ToolRunner();
     const verdict = rulePromiseStatus(row.category, policyRunner, reservation);
     const { overruled } = reconcileStatus(verdict.status, proposal?.proposed_status);

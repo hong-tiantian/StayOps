@@ -52,7 +52,7 @@ export class ToolRunner {
 
   check_room_readiness(
     room_type: string,
-    constraints: { quiet_zone?: boolean; away_from_elevator?: boolean },
+    constraints: { quiet_zone?: boolean; away_from_elevator?: boolean; high_floor?: boolean },
     arrival_time: string
   ) {
     const inv = loadRoomInventory().filter((r) => r.room_type === room_type);
@@ -64,15 +64,17 @@ export class ToolRunner {
       const ready = rd ? new Date(rd.estimated_ready_at).getTime() : Infinity;
       const meetsQuiet = constraints.quiet_zone ? room.quiet_zone : true;
       const meetsElevator = constraints.away_from_elevator ? !room.near_elevator : true;
+      const meetsFloor = constraints.high_floor ? room.floor >= 4 : true;
 
       let suitability: "suitable" | "candidate_later" | "unsuitable";
       let reason: string;
 
-      if (!meetsQuiet || !meetsElevator) {
+      if (!meetsQuiet || !meetsElevator || !meetsFloor) {
         suitability = "unsuitable";
         const probs: string[] = [];
         if (!meetsQuiet) probs.push("not in quiet zone");
         if (!meetsElevator) probs.push("near elevator");
+        if (!meetsFloor) probs.push("not on a high floor");
         reason = `Constraint not met: ${probs.join(", ")}.`;
       } else if (rd && rd.inspected && ready <= arrival) {
         suitability = "suitable";
