@@ -52,6 +52,8 @@ export interface PromiseDecision {
   execution_state: string;
   linked_task_id?: string;
   tool_calls: ToolCall[];
+  /** True when managers have repeatedly approved this promise — learned fast-track. */
+  learned_fast_track?: boolean;
 }
 
 export interface RecoveryTrace {

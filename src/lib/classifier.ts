@@ -3,6 +3,7 @@ import { ToolRunner } from "./tools";
 import { allFreshness } from "./freshness";
 import { runPromiseAgent, AgentProposal } from "./agent/promiseAgent";
 import { rulePromiseStatus, alignPromiseId, reconcileStatus } from "./agent/policy";
+import { isFastTrack } from "./learning/feedbackStore";
 import { Department, PromiseDecision, PromiseStatus, PromiseType, ToolCall } from "./types";
 
 /**
@@ -70,6 +71,12 @@ function buildDecision(
   tool_calls: ToolCall[],
   proposal?: AgentProposal
 ): PromiseDecision {
+  // Learning reflux: if managers have repeatedly approved this promise, surface
+  // it as a fast-track suggestion on the next audit (status still set by policy).
+  const fast = isFastTrack(row.promise_id);
+  const finalEvidence = fast
+    ? [...evidence, "💡 Learned: managers have fast-tracked this promise before — suggest pre-approval."]
+    : evidence;
   return {
     promise_id: row.promise_id,
     booking_id: row.booking_id,
@@ -79,13 +86,14 @@ function buildDecision(
     owner_department: row.owner_department as Department,
     source_message_id: "MSG-001",
     source_quote: proposal?.source_quote || SOURCE_QUOTES[row.promise_id],
-    evidence,
+    evidence: finalEvidence,
     risk_reason: row.risk_reason,
     recommended_action: row.recommended_action,
     approval_required: row.approval_required,
     execution_state: row.execution_state,
     linked_task_id: linkedTaskFor(row.promise_id),
     tool_calls,
+    learned_fast_track: fast,
   };
 }
 

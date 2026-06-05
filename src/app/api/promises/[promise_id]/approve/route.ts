@@ -1,16 +1,20 @@
 import { NextResponse } from "next/server";
-import { getOpsTasks, loadApprovalRecords, loadPromiseLedger } from "@/lib/data";
+import { getOpsTasks, loadPromiseLedger } from "@/lib/data";
+import { getDb } from "@/lib/store/db";
 import { recordFeedback } from "@/lib/learning/feedbackStore";
 
 export const dynamic = "force-dynamic";
 
-// In-memory overlay of runtime approvals (seeded from approval_records.csv).
-const g = globalThis as unknown as { __stayops_approvals__?: Set<string> };
-function approvedSet(): Set<string> {
-  if (!g.__stayops_approvals__) {
-    g.__stayops_approvals__ = new Set(loadApprovalRecords().map((a) => a.promise_id));
-  }
-  return g.__stayops_approvals__;
+function addApproval(promise_id: string): void {
+  getDb()
+    .prepare("INSERT OR IGNORE INTO approvals (promise_id, at) VALUES (?, ?)")
+    .run(promise_id, new Date().toISOString());
+}
+
+function listApprovals(): string[] {
+  return (getDb().prepare("SELECT promise_id FROM approvals").all() as Array<{ promise_id: string }>).map(
+    (r) => r.promise_id
+  );
 }
 
 export async function POST(
@@ -18,7 +22,7 @@ export async function POST(
   { params }: { params: Promise<{ promise_id: string }> }
 ) {
   const { promise_id } = await params;
-  approvedSet().add(promise_id);
+  addApproval(promise_id);
 
   // Feed the self-improvement loop: record the manager's approval.
   const row = loadPromiseLedger().find((p) => p.promise_id === promise_id);
@@ -45,5 +49,5 @@ export async function POST(
 }
 
 export async function GET() {
-  return NextResponse.json({ approved: Array.from(approvedSet()) });
+  return NextResponse.json({ approved: listApprovals() });
 }

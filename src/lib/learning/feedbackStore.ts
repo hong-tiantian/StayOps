@@ -1,12 +1,12 @@
+import { getDb } from "../store/db";
+
 /**
- * Self-improvement loop — manager feedback capture + learned preferences.
+ * Self-improvement loop — manager feedback capture + learned preferences,
+ * persisted in SQLite so learning survives restarts.
  *
  * Every manager decision (approve / reject) on an agent recommendation is
  * recorded. We aggregate those decisions into "learned preferences" that the
- * dashboard surfaces and that the next audit can fast-track. This is the visible
- * minimum of the agent learning from how the hotel actually overrides it.
- *
- * Stored on globalThis so it survives HMR within a running server (demo-scoped).
+ * dashboard surfaces and that the next audit can fast-track.
  */
 
 export interface FeedbackEvent {
@@ -17,15 +17,12 @@ export interface FeedbackEvent {
   at: string;
 }
 
-const g = globalThis as unknown as { __stayops_feedback__?: FeedbackEvent[] };
-
-function store(): FeedbackEvent[] {
-  if (!g.__stayops_feedback__) g.__stayops_feedback__ = [];
-  return g.__stayops_feedback__;
-}
-
 export function recordFeedback(e: Omit<FeedbackEvent, "at">): void {
-  store().push({ ...e, at: new Date().toISOString() });
+  getDb()
+    .prepare(
+      "INSERT INTO feedback (promise_id, promise_text, prior_status, decision, at) VALUES (?, ?, ?, ?, ?)"
+    )
+    .run(e.promise_id, e.promise_text ?? null, e.prior_status ?? null, e.decision, new Date().toISOString());
 }
 
 export interface LearnedPreference {
@@ -38,15 +35,19 @@ export interface LearnedPreference {
 
 /** Aggregate recorded decisions into per-promise learned preferences. */
 export function learnedPreferences(): LearnedPreference[] {
+  const rows = getDb()
+    .prepare("SELECT promise_id, promise_text, decision FROM feedback")
+    .all() as Array<{ promise_id: string; promise_text: string | null; decision: string }>;
+
   const byId = new Map<string, LearnedPreference>();
-  for (const e of store()) {
+  for (const r of rows) {
     const cur =
-      byId.get(e.promise_id) ??
-      { promise_id: e.promise_id, promise_text: e.promise_text, approvals: 0, rejections: 0, hint: "" };
-    if (e.decision === "approved") cur.approvals++;
+      byId.get(r.promise_id) ??
+      { promise_id: r.promise_id, promise_text: r.promise_text ?? undefined, approvals: 0, rejections: 0, hint: "" };
+    if (r.decision === "approved") cur.approvals++;
     else cur.rejections++;
-    cur.promise_text = cur.promise_text ?? e.promise_text;
-    byId.set(e.promise_id, cur);
+    cur.promise_text = cur.promise_text ?? r.promise_text ?? undefined;
+    byId.set(r.promise_id, cur);
   }
   for (const p of byId.values()) {
     p.hint =
@@ -60,12 +61,9 @@ export function learnedPreferences(): LearnedPreference[] {
 }
 
 export function feedbackSummary() {
+  const total = (getDb().prepare("SELECT COUNT(*) AS c FROM feedback").get() as { c: number }).c;
   const learned = learnedPreferences();
-  return {
-    total_decisions: store().length,
-    learned_count: learned.length,
-    learned,
-  };
+  return { total_decisions: total, learned_count: learned.length, learned };
 }
 
 /** A promise is "fast-track" learned if managers approved it >= 2 times. */
