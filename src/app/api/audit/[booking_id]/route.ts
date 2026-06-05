@@ -8,6 +8,6 @@ export async function POST(
   { params }: { params: Promise<{ booking_id: string }> }
 ) {
   const { booking_id } = await params;
-  const result = runPromiseAudit(booking_id);
+  const result = await runPromiseAudit(booking_id);
   return NextResponse.json(result);
 }

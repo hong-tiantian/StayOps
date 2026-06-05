@@ -34,6 +34,33 @@ export function getGemini(): GoogleGenAI {
   return client;
 }
 
+const RETRY_DELAYS_MS = [3000, 9000, 20000];
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * Call generateContent with exponential backoff on rate limits (429 /
+ * RESOURCE_EXHAUSTED) and transient 503s. Free-tier Gemini 3.x quota is low,
+ * so a multi-step agent run can briefly exhaust it; backing off lets the run
+ * complete instead of failing straight to the deterministic fallback.
+ */
+export async function generateWithRetry(
+  params: Parameters<GoogleGenAI["models"]["generateContent"]>[0]
+) {
+  const ai = getGemini();
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await ai.models.generateContent(params);
+    } catch (err) {
+      const msg = String(err);
+      const retriable =
+        msg.includes("429") || msg.includes("RESOURCE_EXHAUSTED") || msg.includes("503");
+      if (!retriable || attempt >= RETRY_DELAYS_MS.length) throw err;
+      await sleep(RETRY_DELAYS_MS[attempt]);
+    }
+  }
+}
+
 /** Plain text completion. Returns the model's text, trimmed. */
 export async function geminiText(prompt: string): Promise<string> {
   const ai = getGemini();
