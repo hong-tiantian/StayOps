@@ -1,0 +1,2 @@
+booking_id,company_name,billing_contact,tax_id,billing_address,payment_terms,status
+BKG-2026-0718-ACME,Acme Robotics,,,,,incomplete

@@ -1,0 +1,7 @@
+room_id,room_type,floor,quiet_zone,near_elevator,blocked_for_booking_id,next_arrival_booking_id
+401,king,4,true,false,,BKG-2026-0718-OTHER
+402,king,4,true,true,,BKG-2026-0718-ACME
+504,king,5,true,false,,BKG-2026-0718-ACME
+506,king,5,false,true,,BKG-2026-0718-ACME
+301,twin,3,false,false,,BKG-2026-0718-ACME
+302,twin,3,false,true,,BKG-2026-0718-ACME

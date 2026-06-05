@@ -1,0 +1,5 @@
+staff_id,staff_name,shift_start,shift_end,capacity_minutes,assigned_minutes
+HK-01,Ana Ruiz,2026-07-18T08:00:00,2026-07-18T16:00:00,420,390
+HK-02,Luis Marin,2026-07-18T08:00:00,2026-07-18T16:00:00,420,410
+HK-03,Sofia Ortega,2026-07-18T10:00:00,2026-07-18T18:00:00,420,300
+HK-04,Noah Vega,2026-07-18T08:00:00,2026-07-18T14:00:00,300,270

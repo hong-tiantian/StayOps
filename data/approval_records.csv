@@ -1,0 +1,3 @@
+approval_id,booking_id,promise_id,approved_by,approved_at,decision,notes
+APR-001,BKG-2026-0718-ACME,P-002,manager@hotel.test,2026-07-18T09:58:00Z,approved,"Prioritize quiet king for VP and lock room away from elevator."
+APR-002,BKG-2026-0718-ACME,P-004,manager@hotel.test,2026-07-18T09:59:00Z,approved,"Projector setup confirmed for MR-BLUE."

@@ -1,0 +1,5 @@
+message_id,booking_id,channel,sender,received_at,message_type,body
+MSG-001,BKG-2026-0718-ACME,sales_email,maya.chen@acmerobotics.com,2026-07-10T15:22:00Z,booking_request,"We are confirming our corporate offsite for 12 rooms from July 18-20. Some executives may arrive around 11am, so early check-in would be helpful. Please place our VP in a quiet king room away from elevators if possible. We also need gluten-free breakfast for two attendees, a projector in the meeting room, airport transfer from MAD, and a company invoice."
+MSG-002,BKG-2026-0718-ACME,sales_note,sales@hotel.test,2026-07-10T15:40:00Z,internal_note,"Sales told client we will note early arrival request. Quiet king for VP should be prioritized but not yet locked."
+MSG-003,BKG-2026-0718-ACME,guest_email,maya.chen@acmerobotics.com,2026-07-16T09:05:00Z,follow_up,"Please remember the projector and the quiet room for our VP. The meeting starts at 2pm sharp."
+MSG-004,BKG-2026-0718-ACME,complaint,maya.chen@acmerobotics.com,2026-07-18T14:18:00Z,complaint,"The VP was promised a quiet king room, but was placed near the elevator, and the projector was not ready when the meeting started."

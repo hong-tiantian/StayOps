@@ -1,0 +1,7 @@
+policy_id,promise_type,rule,approval_required,department,deadline_rule
+SOP-ECI-001,early_check_in,"Early check-in before 14:00 may be noted but cannot be guaranteed unless the assigned room is inspected and released.",true,front_desk,"arrival_time"
+SOP-ROOM-002,quiet_room,"VIP quiet-room preferences require room blocking after manager approval.",true,front_desk,"arrival_minus_1_day"
+SOP-FB-003,gluten_free_breakfast,"Dietary restrictions must be sent to F&B by 17:00 one day before breakfast service.",false,fb,"service_date_minus_1_day_17_00"
+SOP-EVT-004,projector_setup,"Projector setup must be completed 120 minutes before meeting start.",false,events,"meeting_start_minus_120_minutes"
+SOP-TRN-005,airport_transfer,"Airport transfer requires flight number, arrival time, passenger count, and phone number.",false,concierge,"arrival_minus_1_day"
+SOP-BIL-006,company_invoice,"Company invoice requires billing contact, legal company name, tax ID, and billing address.",false,sales,"departure_date"
