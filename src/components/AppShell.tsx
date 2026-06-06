@@ -20,6 +20,8 @@ export default function AppShell({
   tracing,
   lang,
   onLang,
+  bookings,
+  onBooking,
   children,
 }: {
   tabs: TabDef[];
@@ -34,6 +36,8 @@ export default function AppShell({
   tracing: boolean;
   lang: Lang;
   onLang: (lang: Lang) => void;
+  bookings: Array<{ booking_id: string; company_name: string }>;
+  onBooking: (id: string) => void;
   children: React.ReactNode;
 }) {
   const t = ui[lang];
@@ -63,9 +67,24 @@ export default function AppShell({
           </div>
 
           <div className="flex items-center gap-2 text-[11px]">
-            <span className="rounded-full bg-white/70 px-2.5 py-1.5 font-medium text-slate-600 ring-1 ring-slate-200/70">
-              {bookingId} · {company}
-            </span>
+            <select
+              value={bookingId}
+              onChange={(e) => onBooking(e.target.value)}
+              title="Switch booking"
+              className="max-w-[260px] rounded-full bg-white/70 px-2.5 py-1.5 font-medium text-slate-600 ring-1 ring-slate-200/70 outline-none focus:ring-slate-300"
+            >
+              {bookings.length === 0 ? (
+                <option value={bookingId}>
+                  {bookingId} · {company}
+                </option>
+              ) : (
+                bookings.map((b) => (
+                  <option key={b.booking_id} value={b.booking_id}>
+                    {b.booking_id} · {b.company_name}
+                  </option>
+                ))
+              )}
+            </select>
             <span
               className={`flex items-center gap-1.5 rounded-full px-2.5 py-1.5 font-medium ${
                 allFresh ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"

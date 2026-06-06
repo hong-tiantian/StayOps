@@ -25,7 +25,7 @@ import {
 } from "@/lib/types";
 import { Lang, ui } from "@/lib/i18n";
 
-const BOOKING_ID = "BKG-2026-0718-ACME";
+const SEED_BOOKING = "BKG-2026-0718-ACME";
 
 const DEFAULT_COMPLAINT =
   "The VP was promised a quiet king room, but was placed near the elevator, and the projector was not ready when the meeting started.";
@@ -33,6 +33,8 @@ const DEFAULT_COMPLAINT =
 export default function Page() {
   const [lang, setLang] = useState<Lang>("en");
   const [activeTab, setActiveTab] = useState("dashboard");
+  const [bookingId, setBookingId] = useState(SEED_BOOKING);
+  const [bookings, setBookings] = useState<Array<{ booking_id: string; company_name: string }>>([]);
   const t = ui[lang];
 
   const tabs: TabDef[] = useMemo(
@@ -67,15 +69,15 @@ export default function Page() {
   const [tracing, setTracing] = useState(false);
 
   const refreshTasks = useCallback(async () => {
-    const r = await fetch(`/api/tasks?booking_id=${BOOKING_ID}`);
+    const r = await fetch(`/api/tasks?booking_id=${bookingId}`);
     const j = await r.json();
     setTasks(j.tasks);
-  }, []);
+  }, [bookingId]);
 
   const runAudit = useCallback(
     async (silent = false) => {
       if (!silent) setAuditing(true);
-      const r = await fetch(`/api/audit/${BOOKING_ID}`, { method: "POST" });
+      const r = await fetch(`/api/audit/${bookingId}`, { method: "POST" });
       const j = await r.json();
       setDecisions(j.decisions);
       setAuditCalls(j.tool_calls);
@@ -87,7 +89,7 @@ export default function Page() {
         setActiveTab("ledger");
       }
     },
-    [refreshTasks]
+    [refreshTasks, bookingId]
   );
 
   const approve = useCallback(
@@ -117,7 +119,7 @@ export default function Page() {
       const r = await fetch(`/api/complaints/trace`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ booking_id: BOOKING_ID, complaint_text: text }),
+        body: JSON.stringify({ booking_id: bookingId, complaint_text: text }),
       });
       const j = (await r.json()) as RecoveryTrace & { tool_calls: ToolCall[] };
       setTrace(j);
@@ -126,15 +128,15 @@ export default function Page() {
       setTracing(false);
       setActiveTab("recovery");
     },
-    [refreshTasks]
+    [refreshTasks, bookingId]
   );
 
   // Initial load.
   useEffect(() => {
     (async () => {
       const [b, m, f, ap] = await Promise.all([
-        fetch(`/api/bookings/${BOOKING_ID}`).then((r) => r.json()),
-        fetch(`/api/messages/${BOOKING_ID}`).then((r) => r.json()),
+        fetch(`/api/bookings/${bookingId}`).then((r) => r.json()),
+        fetch(`/api/messages/${bookingId}`).then((r) => r.json()),
         fetch(`/api/freshness`).then((r) => r.json()),
         fetch(`/api/promises/seed/approve`).then((r) => r.json()),
       ]);
@@ -147,6 +149,14 @@ export default function Page() {
       await runAudit(true);
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bookingId]);
+
+  // Load booking list once for the selector.
+  useEffect(() => {
+    fetch("/api/bookings")
+      .then((r) => r.json())
+      .then((j) => setBookings(j.bookings ?? []))
+      .catch(() => setBookings([]));
   }, []);
 
   const freshnessByPromise = useMemo(() => {
@@ -172,7 +182,7 @@ export default function Page() {
       tabs={tabs}
       activeTab={activeTab}
       onTab={setActiveTab}
-      bookingId={BOOKING_ID}
+      bookingId={bookingId}
       company={reservation?.company_name ?? "Acme Robotics"}
       allFresh={allFresh}
       onRunAudit={() => runAudit(false)}
@@ -181,6 +191,8 @@ export default function Page() {
       tracing={tracing}
       lang={lang}
       onLang={setLang}
+      bookings={bookings}
+      onBooking={setBookingId}
     >
       {activeTab === "dashboard" && (
         <div className="space-y-5">

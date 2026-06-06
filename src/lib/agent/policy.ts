@@ -28,6 +28,9 @@ const CATEGORY_MATCHERS: Array<{ category: string; test: (t: string) => boolean 
   { category: "company_invoice", test: (t) => /invoice|billing|tax|company account/.test(t) },
   { category: "upgrade", test: (t) => /upgrade|suite/.test(t) },
   { category: "parking", test: (t) => /parking|car park|garage|vehicle/.test(t) },
+  { category: "long_stay_discount", test: (t) => /long[- ]?stay|discount|monthly rate/.test(t) },
+  { category: "lost_and_found", test: (t) => /lost|left.*(charger|behind|in (?:my |the )?room)|forgot|find.*(charger|phone|item)/.test(t) },
+  { category: "maintenance", test: (t) => /air ?condition|\bac\b|not cooling|broken|repair|\bfix\b|maintenance|leak|heater|not working/.test(t) },
 ];
 
 /** Map an extracted promise text to a promise category, or null if none match. */
@@ -164,6 +167,25 @@ export function rulePromiseStatus(
         "SOP-PRK-009: parking requires vehicle plate and arrival time — not provided in the booking message."
       );
       return { status: "missing_info", evidence };
+    }
+    case "long_stay_discount": {
+      runner.retrieve_sop("long_stay_discount");
+      evidence.push(
+        "SOP-LSD-010: long-stay discounts require revenue manager approval based on the occupancy forecast."
+      );
+      return { status: "needs_approval", evidence };
+    }
+    case "lost_and_found": {
+      runner.retrieve_sop("lost_and_found");
+      evidence.push(
+        "SOP-LAF-011: front desk checks the log + storage and dispatches housekeeping to inspect the room — cannot auto-confirm until the item is found."
+      );
+      return { status: "at_risk", evidence };
+    }
+    case "maintenance": {
+      runner.retrieve_sop("maintenance");
+      evidence.push("SOP-MNT-012: dispatch on-call technician; honored subject to staff availability.");
+      return { status: "verifiable", evidence };
     }
     default:
       return { status: "cannot_confirm", evidence: ["No deterministic rule for this promise."] };

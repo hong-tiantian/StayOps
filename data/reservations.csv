@@ -1,3 +1,4 @@
 booking_id,company_name,arrival_date,arrival_time,departure_date,room_count,king_count,twin_count,meeting_room_id,primary_contact,status
 BKG-2026-0718-ACME,Acme Robotics,2026-07-18,11:00,2026-07-20,12,8,4,MR-BLUE,Maya Chen,confirmed
 BKG-2026-0719-OTA,Sofia Rossi (Booking.com),2026-07-19,15:00,2026-07-21,1,1,0,,Sofia Rossi,confirmed
+BKG-2026-0722-LONGSTAY,David Kim (long stay),2026-07-22,14:00,2026-08-21,1,1,0,,David Kim,confirmed

@@ -27,7 +27,8 @@ export type Department =
   | "events"
   | "sales"
   | "concierge"
-  | "manager";
+  | "manager"
+  | "maintenance";
 
 export interface ToolCall {
   tool_name: string;
