@@ -31,7 +31,11 @@ Acme Robotics books:
 - Meeting room: `MR-BLUE`
 - Meeting time: `14:00-17:00`
 
-The booking email includes six guest-facing promises or requests:
+Info Analysis treats the reservation as a `corporate_group_event`. The basic info is
+complete enough to evaluate extras: company, dates, room count, room mix, arrival window,
+meeting room, meeting time, and primary contact are present.
+
+The booking email includes six extra items that require verification:
 
 1. Early check-in around 11:00.
 2. Quiet king room away from elevators for the VP.
@@ -82,8 +86,8 @@ StayOps should trace this to:
 The three-minute demo should tell this story:
 
 1. A hotel does not fail only because it replies slowly.
-2. It fails because guest-facing promises are not verified or tracked through execution.
-3. StayOps checks fresh operational data before committing.
-4. StayOps creates tasks only for verified or approved promises.
+2. It fails because basic info, extra requests, approvals, and tasks are not kept in one traceable chain.
+3. StayOps checks basic info first, then verifies each extra item against fresh operational data.
+4. StayOps proposes tasks only for verified items or manager-approved risk items.
 5. When a failure happens, StayOps traces the broken promise chain and suggests recovery.
 

@@ -81,8 +81,8 @@ guest emails / calls to book a venue for a specific night
 ## C. The shared lifecycle (one model, two verticals)
 
 ```
-inbound request  →  extract promises/requirements  →  verify feasibility (data + SOP + lead time)
-→  manager approves / declines (keep the human in control)
+inbound request  →  analyze basic info  →  extract extra items  →  verify feasibility (data + SOP + lead time)
+→  manager approves / declines risky commitments (keep the human in control)
 →  route tasks to departments with the right due time
 →  prep
 →  if it breaks: trace the broken promise  →  recovery  →  postmortem / rule fix
@@ -139,17 +139,17 @@ Human root cause:
 StayOps adds a verification layer before task creation and a trace layer after complaints.
 
 1. Intake the booking and related messages.
-2. Extract guest-facing promises.
-3. Check data freshness before making decisions.
-4. Verify each promise against room inventory, readiness, SOP, event spaces, billing, transport, approvals, and existing tasks.
-5. Classify each promise as verifiable, at risk, missing info, cannot confirm, or conflict.
-6. Route risky items to manager approval.
-7. Create or update department tasks only after verification or approval.
-8. Monitor linked tasks for due-time and completion risks.
-9. If a complaint arrives, trace it to the original promise, approval, and task failure.
-10. Generate recovery actions and internal rule fixes.
+2. Determine intake scope and check basic info completeness.
+3. Extract extra items only after the stay/order context is understandable.
+4. Check data freshness before making decisions.
+5. Verify each extra item against room inventory, readiness, SOP, event spaces, billing, transport, approvals, and existing tasks.
+6. Classify verification status as verifiable, at risk, missing info, cannot confirm, or conflict.
+7. Route risky items to manager approval.
+8. Create or update department tasks only after verification or approval.
+9. Monitor linked tasks for due-time and completion risks.
+10. If a complaint arrives, trace it to the original promise, approval, and task failure.
+11. Generate recovery actions and internal rule fixes.
 
 ## Product Boundary
 
 StayOps is not a full PMS, guest inbox, task manager, or chatbot. It sits between guest-facing commitments and operational execution.
-

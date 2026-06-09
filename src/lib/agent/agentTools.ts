@@ -40,6 +40,7 @@ export const AGENT_TOOL_DECLARATIONS: FunctionDeclaration[] = [
         room_type: { type: Type.STRING, description: 'e.g. "king" or "twin".' },
         quiet_zone: { type: Type.BOOLEAN, description: "Require a quiet-zone room." },
         away_from_elevator: { type: Type.BOOLEAN, description: "Require away from elevator." },
+        high_floor: { type: Type.BOOLEAN, description: "Require a high floor (4th floor or above)." },
         arrival_time: { type: Type.STRING, description: "ISO local arrival, e.g. 2026-07-18T11:00:00." },
       },
       required: ["room_type"],
@@ -52,6 +53,7 @@ export const AGENT_TOOL_DECLARATIONS: FunctionDeclaration[] = [
       type: Type.OBJECT,
       properties: {
         item_type: { type: Type.STRING, description: 'e.g. "projector".' },
+        space_id: { type: Type.STRING, description: "Optional event space id for AV inventory." },
       },
       required: ["item_type"],
     },
@@ -59,7 +61,7 @@ export const AGENT_TOOL_DECLARATIONS: FunctionDeclaration[] = [
   {
     name: "retrieve_sop",
     description:
-      "Retrieve the hotel SOP policy for a promise category. Valid promise_type values: " +
+      "Retrieve the hotel SOP policy for an internal promise rule_key. Valid promise_type values: " +
       "early_check_in, quiet_room, gluten_free_breakfast, projector_setup, " +
       "airport_transfer, company_invoice.",
     parameters: {
@@ -105,11 +107,14 @@ export function dispatchTool(name: string, args: ToolArgs, runner: ToolRunner): 
         {
           quiet_zone: Boolean(args.quiet_zone),
           away_from_elevator: Boolean(args.away_from_elevator),
+          high_floor: Boolean(args.high_floor),
         },
         String(args.arrival_time ?? "2026-07-18T11:00:00")
       );
     case "check_inventory":
-      return runner.check_inventory(String(args.item_type));
+      return runner.check_inventory(String(args.item_type), {
+        space_id: args.space_id ? String(args.space_id) : undefined,
+      });
     case "retrieve_sop":
       return runner.retrieve_sop(String(args.promise_type));
     case "check_event_space":

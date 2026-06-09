@@ -1,16 +1,37 @@
 import { NextResponse } from "next/server";
 import { getOpsTasks, loadApprovalRecords, loadPromiseLedger } from "@/lib/data";
+import { getDb } from "@/lib/store/db";
 import { recordFeedback } from "@/lib/learning/feedbackStore";
 
 export const dynamic = "force-dynamic";
 
-// In-memory overlay of runtime approvals (seeded from approval_records.csv).
-const g = globalThis as unknown as { __stayops_approvals__?: Set<string> };
-function approvedSet(): Set<string> {
-  if (!g.__stayops_approvals__) {
-    g.__stayops_approvals__ = new Set(loadApprovalRecords().map((a) => a.promise_id));
-  }
-  return g.__stayops_approvals__;
+function addApproval(promise_id: string): void {
+  getDb()
+    .prepare("INSERT OR IGNORE INTO runtime_approvals (promise_id, at) VALUES (?, ?)")
+    .run(promise_id, new Date().toISOString());
+}
+
+function listRuntimeApprovals(): string[] {
+  return (getDb().prepare("SELECT promise_id FROM runtime_approvals").all() as Array<{ promise_id: string }>).map(
+    (r) => r.promise_id
+  );
+}
+
+function listHistoricalApprovals(): string[] {
+  return loadApprovalRecords()
+    .filter((record) => record.decision === "approved")
+    .map((record) => record.promise_id);
+}
+
+function approvalState() {
+  const runtime_approved = listRuntimeApprovals();
+  const historical_trace_approved = listHistoricalApprovals();
+  return {
+    // Backward-compatible display set for the current UI.
+    approved: Array.from(new Set([...historical_trace_approved, ...runtime_approved])),
+    historical_trace_approved,
+    runtime_approved,
+  };
 }
 
 export async function POST(
@@ -18,7 +39,7 @@ export async function POST(
   { params }: { params: Promise<{ promise_id: string }> }
 ) {
   const { promise_id } = await params;
-  approvedSet().add(promise_id);
+  addApproval(promise_id);
 
   // Feed the self-improvement loop: record the manager's approval.
   const row = loadPromiseLedger().find((p) => p.promise_id === promise_id);
@@ -36,7 +57,9 @@ export async function POST(
   return NextResponse.json({
     promise_id,
     status: "approved",
+    approval_scope: "runtime_manager_decision",
     linked_task: linkedTask,
+    approval_state: approvalState(),
     note:
       promise_id === "P-002"
         ? "Front desk room-blocking task TASK-103 displayed and kept OPEN (room not yet locked)."
@@ -45,5 +68,5 @@ export async function POST(
 }
 
 export async function GET() {
-  return NextResponse.json({ approved: Array.from(approvedSet()) });
+  return NextResponse.json(approvalState());
 }

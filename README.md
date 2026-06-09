@@ -17,19 +17,26 @@ Corporate booking email + reservation
       │
       ▼
 ┌─────────────────────────────────────────────────────────────┐
-│ A. Gemini Agent (ReAct function-calling loop)                │
-│    src/lib/agent/promiseAgent.ts                             │
-│    • Extracts every guest-facing promise from the raw email  │
-│    • AUTONOMOUSLY calls read-only tools to gather evidence:   │
-│      check_data_freshness · check_room_readiness ·           │
-│      retrieve_sop · check_event_space · check_inventory       │
-│    • Tool execution is deterministic (CSV-backed); every     │
-│      call is recorded for the UI tool-call log               │
+│ A. Info Analysis                                              │
+│    src/lib/infoAnalysis.ts                                    │
+│    • Determines intake scope and basic-info completeness      │
+│    • Extracts extra items with source message quotes          │
+│    • Assigns domain, subtype, rule_key, and verification route│
+└─────────────────────────────────────────────────────────────┘
+      │
+      ▼
+┌─────────────────────────────────────────────────────────────┐
+│ B. Agent Orchestration + Verification                         │
+│    ADK service when ADK_AGENT_URL is configured; otherwise     │
+│    the in-app Gemini ReAct loop; rules fallback if unavailable │
+│    • Gemini proposes evidence-backed verification results      │
+│    • Read-only tools gather freshness, SOP, inventory, rooms,  │
+│      event-space, billing, and transport evidence              │
 └─────────────────────────────────────────────────────────────┘
       │  (proposals + evidence)
       ▼
 ┌─────────────────────────────────────────────────────────────┐
-│ B. Deterministic Policy Guardrails                           │
+│ C. Deterministic Policy Guardrails                           │
 │    src/lib/agent/policy.ts                                   │
 │    • Freshness gate: a stale required source can NEVER be     │
 │      verifiable — forced down to cannot_confirm               │
@@ -40,8 +47,8 @@ Corporate booking email + reservation
 └─────────────────────────────────────────────────────────────┘
       │
       ▼
-   Promise Ledger (UI) — each row shows status, evidence, owner,
-   and a "Reasoning: Gemini agent | Deterministic policy" badge
+   Promise Ledger + Task Plan — each row shows status, evidence,
+   owner, source quote, and proposed follow-up/handoff action
       │
       ▼
    Manager approve / edit / reject  →  department tasks
@@ -53,7 +60,7 @@ Corporate booking email + reservation
      falls back to the SAME deterministic policy — the demo never breaks.
 ```
 
-The two paths (Gemini agent and offline fallback) share one policy engine, so they can never disagree on the final status. Whether Gemini actually ran is surfaced in the UI via `reasoning_source: "gemini" | "rules"`.
+The orchestration paths (ADK, Gemini loop, and offline fallback) share one policy engine, so they can never disagree on the final executable status. Whether ADK/Gemini actually ran is surfaced via `reasoning_source: "adk" | "gemini" | "rules"`.
 
 ## Demo Case
 
@@ -75,6 +82,7 @@ A complaint later arrives — *"The VP was promised a quiet king room, but was p
 - **Next.js 16** (App Router) + **React 18** + **TypeScript**
 - **Tailwind CSS**
 - **Gemini 3.5 Flash on Vertex AI** via the `@google/genai` SDK, authenticated with **Application Default Credentials (ADC)** — no API key is stored (org policy requires ADC)
+- **Google Cloud Agent Builder / ADK path** via the standalone `agent/promise_agent` service when `ADK_AGENT_URL` is configured
 - **Deterministic policy engine** (rule guardrails) — the safety layer and offline fallback
 - **Local CSV as a mock PMS** data layer, behind tool interfaces that an Opera/Cloudbeds/Mews adapter or a data warehouse pipeline can replace without touching agent logic
 - **Arize Phoenix observability** via OpenTelemetry/OpenInference spans plus Phoenix MCP self-review, so the demo can show how Gemini reasoning, tool calls, and policy guardrails are audited
@@ -157,14 +165,17 @@ All synthetic data lives in `/data` as CSV (loaded by `src/lib/data.ts`), acting
 ## Status & Roadmap
 
 **Done**
+- Info Analysis layer for intake scope, basic info, extra items, source quotes, domains, rule keys, and verification routes
+- Output-only Task Planning Agent (`task_plan`) for manager review, follow-up, cautious reply, or department handoff
 - Gemini 3.5 Flash agent: real ReAct function-calling loop (`reasoning_source: gemini` verified)
+- Local ADK / Agent Builder service path wired as primary orchestration when `ADK_AGENT_URL` is configured
 - Deterministic policy guardrails + freshness gate + automatic fallback
 - Eval harness with golden set and safety (overpromise) metric
 - Bilingual operational UI: ledger, task board, timeline, hotel map, complaint recovery
 
 **Planned (hackathon roadmap)**
 - **Arize integration hardening**: connect each promise detail to the relevant Phoenix trace/eval evidence, not only the dashboard self-review panel.
-- **Google Cloud Agent Builder**: current orchestration is a custom ReAct loop in Next API routes; Agent Builder is the documented integration target.
+- **Cloud Run deployment**: deploy the Next.js app and ADK service on Google Cloud; do not use Vercel for the hackathon submission.
 - More real front-desk scenarios (VIP upgrade, room move, maintenance, lost & found, long-stay pricing) with approval tiers.
 - A visible self-learning loop: manager approve/edit/reject → learned preferences/skills.
 - Real PMS adapter (Opera/Cloudbeds/Mews) behind the existing tool interfaces.
@@ -176,7 +187,7 @@ All synthetic data lives in `/data` as CSV (loaded by `src/lib/data.ts`), acting
 - Free-tier Gemini quota is low; the agent uses exponential backoff and caches successful audits.
 - Data freshness uses a fixed `DEMO_NOW`; the freshness gate logic is real, but all demo sources are currently fresh.
 - Arize/Phoenix tracing and MCP self-review are present, but MCP evidence is not yet shown per promise and does not yet change policy decisions.
-- Agent Builder orchestration is planned, not yet integrated (see Roadmap).
+- Local ADK / Agent Builder orchestration is implemented; Cloud Run deployment, final submission docs, and Arize hardening are still pending.
 
 ## Project Docs
 

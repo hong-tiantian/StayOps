@@ -27,7 +27,63 @@ export type Department =
   | "events"
   | "sales"
   | "concierge"
-  | "manager";
+  | "manager"
+  | "maintenance";
+
+export type IntakeScope =
+  | "individual_stay"
+  | "group_stay"
+  | "corporate_group"
+  | "corporate_group_event"
+  | "event_booking"
+  | "vip_stay"
+  | "long_stay"
+  | "unknown";
+
+export type BasicInfoStatus = "complete" | "missing_info" | "conflict" | "cannot_confirm";
+
+export type ExtraItemDomain =
+  | "arrival_exception"
+  | "room_preference"
+  | "fb_requirement"
+  | "event_av"
+  | "transport"
+  | "commercial"
+  | "exception_value"
+  | "maintenance_service"
+  | "lost_and_found"
+  | "other";
+
+export type ExtraItemClarity = "clear" | "unclear" | "missing_required_fields";
+
+export type VerificationRoute =
+  | "self_verifiable"
+  | "needs_human_approval"
+  | "missing_guest_info"
+  | "cannot_confirm_yet"
+  | "conflict_with_policy_or_inventory";
+
+export type RuleKey =
+  | "early_check_in"
+  | "quiet_room"
+  | "gluten_free_breakfast"
+  | "projector_setup"
+  | "airport_transfer"
+  | "company_invoice"
+  | "upgrade"
+  | "high_floor"
+  | "parking"
+  | "long_stay_discount"
+  | "lost_and_found"
+  | "maintenance";
+
+export type TaskPlanAction =
+  | "none"
+  | "create_task"
+  | "create_follow_up"
+  | "request_manager_approval"
+  | "draft_cautious_reply"
+  | "escalate";
 
 export interface ToolCall {
   tool_name: string;
@@ -52,6 +108,56 @@ export interface PromiseDecision {
   execution_state: string;
   linked_task_id?: string;
   tool_calls: ToolCall[];
+  /** True when managers have repeatedly approved this promise — learned fast-track. */
+  learned_fast_track?: boolean;
+}
+
+export interface InfoAnalysis {
+  booking_id: string;
+  source_channel?: string;
+  intake_scope: IntakeScope;
+  basic_info_status: BasicInfoStatus;
+  basic_info: Record<string, unknown>;
+  missing_basic_fields: string[];
+  extra_items: ExtraItem[];
+}
+
+export interface ExtraItem {
+  item_id: string;
+  text: string;
+  source_message_id?: string;
+  source_quote?: string;
+  domain: ExtraItemDomain;
+  subtype?: string;
+  clarity: ExtraItemClarity;
+  required_fields: string[];
+  missing_fields: string[];
+  verification_route?: VerificationRoute;
+  rule_key?: string;
+}
+
+export interface TaskPlan {
+  item_id: string;
+  action_type: TaskPlanAction;
+  department?: Department;
+  description?: string;
+  due_at?: string;
+  guest_reply_draft?: string;
+  manager_prompt?: string;
+  reason: string;
+}
+
+export interface AgentTraceStage {
+  stage_id:
+    | "info_analysis"
+    | "verification_agent"
+    | "decision_rules"
+    | "task_planning"
+    | "evaluation_recovery"
+    | "arize_monitoring";
+  label: string;
+  status: "complete" | "pending" | "fallback" | "not_run";
+  summary: string;
 }
 
 export interface RecoveryTrace {
@@ -211,6 +317,8 @@ export interface PromiseLedgerRow {
   recommended_action: string;
   approval_required: boolean;
   execution_state: string;
+  /** Compatibility field: internal rule key (early_check_in, quiet_room, upgrade, parking, ...) used by policy rules. */
+  category: string;
 }
 
 export interface FreshnessResult {

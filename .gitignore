@@ -6,4 +6,6 @@
 next-env.d.ts
 .env*.local
 .DS_Store
+/.data
 npm-debug.log*
+/.vs/

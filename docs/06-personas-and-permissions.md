@@ -1,10 +1,15 @@
 # Personas And Permissions
 
-StayOps should not show the same information to every hotel worker. The MVP currently behaves like a single manager dashboard, but the target product has role-specific views and permissions.
+StayOps is a single-persona hackathon demo. The primary user is the hotel duty manager /
+operations lead. Front desk, F&B, events, concierge, sales, housekeeping, and maintenance
+are downstream handoff recipients, not separate authenticated users in this scope.
 
-## Primary Persona: General Manager
+Do not build real RBAC/auth for the hackathon submission. Department labels can help the
+duty manager understand ownership, but the product action remains approval and oversight.
 
-The general manager owns risk and recovery.
+## Primary Persona: Duty Manager / Operations Lead
+
+The duty manager owns promise risk, approval, handoff oversight, and recovery.
 
 Can see:
 
@@ -22,7 +27,7 @@ Can do:
 - Approve recovery actions.
 - Review postmortem suggestions.
 
-## Front Desk Manager
+## Downstream: Front Desk
 
 The front desk manager owns arrival, room assignment, room blocking, and room-related promises.
 
@@ -33,19 +38,16 @@ Can see:
 - VIP room-blocking tasks.
 - Hotel map and assigned-room mismatch.
 
-Can do:
+Can receive handoffs to:
 
 - Lock a room.
 - Update room assignment.
 - Mark room-blocking tasks complete.
 - Escalate impossible room promises.
 
-Cannot do:
+These are operational ownership notes, not permission boundaries.
 
-- Approve compensation.
-- Modify event, billing, or transport policies.
-
-## Events Team
+## Downstream: Events Team
 
 The events team owns meeting rooms, AV equipment, and setup timing.
 
@@ -56,15 +58,12 @@ Can see:
 - Setup lead time from SOP.
 - Events tasks and warnings.
 
-Can do:
+Can receive handoffs to:
 
 - Update setup task status.
 - Confirm projector, screen, HDMI, and room layout readiness.
 
-Cannot do:
-
-- Change guest-facing promise status.
-- Approve manager-only commitments.
+These are operational ownership notes, not permission boundaries.
 
 ## Sales And Reservations
 
@@ -76,15 +75,12 @@ Can see:
 - Missing information promises.
 - Billing and transfer follow-up tasks.
 
-Can do:
+Can receive handoffs to:
 
 - Ask the guest for missing fields.
 - Update billing contact, tax ID, flight number, arrival time, passenger count, and phone number.
 
-Cannot do:
-
-- Mark operational promises complete.
-- Override SOP warnings.
+These are operational ownership notes, not permission boundaries.
 
 ## Developer / Judge View
 
@@ -101,5 +97,7 @@ This view should not be the default hotel worker experience.
 
 ## MVP Decision
 
-For the hackathon MVP, the UI can remain a manager dashboard, but the README and docs should state that role-based panels are planned and that the current interface intentionally shows all evidence for judging.
+For the hackathon MVP, the UI remains a duty-manager dashboard. It may show department
+labels and technical evidence for judges, but it should not claim real permissions,
+role enforcement, or a multi-user workflow.
 

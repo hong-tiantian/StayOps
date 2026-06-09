@@ -5,10 +5,12 @@ export default function DataFreshnessPanel({
   sources,
   demoNow,
   lang,
+  onToggle,
 }: {
   sources: FreshnessResult[];
   demoNow?: string;
   lang: Lang;
+  onToggle?: (source: string) => void;
 }) {
   const t = ui[lang];
   return (
@@ -41,6 +43,7 @@ export default function DataFreshnessPanel({
               <th className="px-3 py-2 text-right font-medium">{t.freshness.age}</th>
               <th className="px-3 py-2 text-right font-medium">{t.freshness.max}</th>
               <th className="px-3 py-2 text-center font-medium">{t.freshness.status}</th>
+              {onToggle && <th className="px-3 py-2 text-center font-medium">Demo</th>}
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
@@ -67,6 +70,22 @@ export default function DataFreshnessPanel({
                     {s.freshness_status}
                   </span>
                 </td>
+                {onToggle && (
+                  <td className="px-3 py-1.5 text-center">
+                    <button
+                      onClick={() => onToggle(s.source_name)}
+                      className="rounded-md border border-slate-200 px-2 py-0.5 text-[10px] text-slate-600 hover:bg-slate-50"
+                    >
+                      {s.freshness_status === "fresh"
+                        ? lang === "zh"
+                          ? "设为过期"
+                          : "make stale"
+                        : lang === "zh"
+                          ? "恢复"
+                          : "reset"}
+                    </button>
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>

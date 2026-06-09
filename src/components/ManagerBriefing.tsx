@@ -27,7 +27,7 @@ export default function ManagerBriefing({
   auditing: boolean;
   tracing: boolean;
   lang: Lang;
-  reasoningSource: "gemini" | "rules" | null;
+  reasoningSource: "adk" | "gemini" | "rules" | null;
 }) {
   const t = ui[lang];
   const warningTasks = tasks.filter((t) => t.warning).length;
@@ -53,18 +53,22 @@ export default function ManagerBriefing({
               </div>
               <div
                 className={`inline-flex items-center rounded-full px-3 py-1 text-[11px] font-semibold ${
-                  reasoningSource === "gemini"
-                    ? "border border-emerald-200 bg-emerald-50 text-emerald-700"
-                    : "border border-slate-300 bg-slate-100 text-slate-600"
+                  reasoningSource === "adk"
+                    ? "border border-indigo-200 bg-indigo-50 text-indigo-700"
+                    : reasoningSource === "gemini"
+                      ? "border border-emerald-200 bg-emerald-50 text-emerald-700"
+                      : "border border-slate-300 bg-slate-100 text-slate-600"
                 }`}
               >
-                {reasoningSource === "gemini"
-                  ? lang === "zh"
-                    ? "⚡ Gemini 智能体推理"
-                    : "⚡ Reasoning: Gemini agent"
-                  : lang === "zh"
-                    ? "🛡 确定性规则(降级)"
-                    : "🛡 Deterministic policy (fallback)"}
+                {reasoningSource === "adk"
+                  ? "🏗 Agent Builder (ADK)"
+                  : reasoningSource === "gemini"
+                    ? lang === "zh"
+                      ? "⚡ Gemini 智能体推理"
+                      : "⚡ Reasoning: Gemini agent"
+                    : lang === "zh"
+                      ? "🛡 确定性规则(降级)"
+                      : "🛡 Deterministic policy (fallback)"}
               </div>
             </div>
             <h1 className="max-w-3xl text-4xl font-semibold leading-[1.03] text-slate-950 sm:text-5xl">

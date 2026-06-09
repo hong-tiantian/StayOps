@@ -15,7 +15,9 @@ import ToolCallLog from "@/components/ToolCallLog";
 import SpotlightCard from "@/components/SpotlightCard";
 import ManagerBriefing from "@/components/ManagerBriefing";
 import SelfReview from "@/components/SelfReview";
+import AgentTeamFlow from "@/components/AgentTeamFlow";
 import {
+  AgentTraceStage,
   FreshnessResult,
   Message,
   PromiseDecision,
@@ -25,7 +27,7 @@ import {
 } from "@/lib/types";
 import { Lang, ui } from "@/lib/i18n";
 
-const BOOKING_ID = "BKG-2026-0718-ACME";
+const SEED_BOOKING = "BKG-2026-0718-ACME";
 
 const DEFAULT_COMPLAINT =
   "The VP was promised a quiet king room, but was placed near the elevator, and the projector was not ready when the meeting started.";
@@ -33,6 +35,8 @@ const DEFAULT_COMPLAINT =
 export default function Page() {
   const [lang, setLang] = useState<Lang>("en");
   const [activeTab, setActiveTab] = useState("dashboard");
+  const [bookingId, setBookingId] = useState(SEED_BOOKING);
+  const [bookings, setBookings] = useState<Array<{ booking_id: string; company_name: string }>>([]);
   const t = ui[lang];
 
   const tabs: TabDef[] = useMemo(
@@ -55,7 +59,8 @@ export default function Page() {
 
   const [decisions, setDecisions] = useState<PromiseDecision[]>([]);
   const [auditCalls, setAuditCalls] = useState<ToolCall[]>([]);
-  const [reasoningSource, setReasoningSource] = useState<"gemini" | "rules" | null>(null);
+  const [agentTrace, setAgentTrace] = useState<AgentTraceStage[]>([]);
+  const [reasoningSource, setReasoningSource] = useState<"adk" | "gemini" | "rules" | null>(null);
   const [tasks, setTasks] = useState<DecoratedTask[]>([]);
   const [approved, setApproved] = useState<Set<string>>(new Set());
 
@@ -67,18 +72,19 @@ export default function Page() {
   const [tracing, setTracing] = useState(false);
 
   const refreshTasks = useCallback(async () => {
-    const r = await fetch(`/api/tasks?booking_id=${BOOKING_ID}`);
+    const r = await fetch(`/api/tasks?booking_id=${bookingId}`);
     const j = await r.json();
     setTasks(j.tasks);
-  }, []);
+  }, [bookingId]);
 
   const runAudit = useCallback(
     async (silent = false) => {
       if (!silent) setAuditing(true);
-      const r = await fetch(`/api/audit/${BOOKING_ID}`, { method: "POST" });
+      const r = await fetch(`/api/audit/${bookingId}`, { method: "POST" });
       const j = await r.json();
       setDecisions(j.decisions);
       setAuditCalls(j.tool_calls);
+      setAgentTrace(j.agent_trace ?? []);
       setFreshness(j.freshness_summary);
       setReasoningSource(j.reasoning_source ?? null);
       await refreshTasks();
@@ -87,7 +93,7 @@ export default function Page() {
         setActiveTab("ledger");
       }
     },
-    [refreshTasks]
+    [refreshTasks, bookingId]
   );
 
   const approve = useCallback(
@@ -99,13 +105,25 @@ export default function Page() {
     [refreshTasks]
   );
 
+  const toggleStaleSource = useCallback(
+    async (source: string) => {
+      await fetch("/api/freshness/toggle", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ source }),
+      });
+      await runAudit(true); // cache cleared server-side; re-audit shows the downgrade
+    },
+    [runAudit]
+  );
+
   const traceComplaint = useCallback(
     async (text: string) => {
       setTracing(true);
       const r = await fetch(`/api/complaints/trace`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ booking_id: BOOKING_ID, complaint_text: text }),
+        body: JSON.stringify({ booking_id: bookingId, complaint_text: text }),
       });
       const j = (await r.json()) as RecoveryTrace & { tool_calls: ToolCall[] };
       setTrace(j);
@@ -114,15 +132,15 @@ export default function Page() {
       setTracing(false);
       setActiveTab("recovery");
     },
-    [refreshTasks]
+    [refreshTasks, bookingId]
   );
 
   // Initial load.
   useEffect(() => {
     (async () => {
       const [b, m, f, ap] = await Promise.all([
-        fetch(`/api/bookings/${BOOKING_ID}`).then((r) => r.json()),
-        fetch(`/api/messages/${BOOKING_ID}`).then((r) => r.json()),
+        fetch(`/api/bookings/${bookingId}`).then((r) => r.json()),
+        fetch(`/api/messages/${bookingId}`).then((r) => r.json()),
         fetch(`/api/freshness`).then((r) => r.json()),
         fetch(`/api/promises/seed/approve`).then((r) => r.json()),
       ]);
@@ -135,6 +153,14 @@ export default function Page() {
       await runAudit(true);
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bookingId]);
+
+  // Load booking list once for the selector.
+  useEffect(() => {
+    fetch("/api/bookings")
+      .then((r) => r.json())
+      .then((j) => setBookings(j.bookings ?? []))
+      .catch(() => setBookings([]));
   }, []);
 
   const freshnessByPromise = useMemo(() => {
@@ -160,7 +186,7 @@ export default function Page() {
       tabs={tabs}
       activeTab={activeTab}
       onTab={setActiveTab}
-      bookingId={BOOKING_ID}
+      bookingId={bookingId}
       company={reservation?.company_name ?? "Acme Robotics"}
       allFresh={allFresh}
       onRunAudit={() => runAudit(false)}
@@ -169,6 +195,8 @@ export default function Page() {
       tracing={tracing}
       lang={lang}
       onLang={setLang}
+      bookings={bookings}
+      onBooking={setBookingId}
     >
       {activeTab === "dashboard" && (
         <div className="space-y-5">
@@ -184,8 +212,9 @@ export default function Page() {
             lang={lang}
             reasoningSource={reasoningSource}
           />
+          <AgentTeamFlow stages={agentTrace} lang={lang} />
           <BookingHeader reservation={reservation} lang={lang} />
-          <DataFreshnessPanel sources={freshness} demoNow={demoNow} lang={lang} />
+          <DataFreshnessPanel sources={freshness} demoNow={demoNow} lang={lang} onToggle={toggleStaleSource} />
           <div className="grid gap-4 lg:grid-cols-2">
             <BookingEmailPanel messages={messages} lang={lang} />
             <SpotlightCard className="p-4">

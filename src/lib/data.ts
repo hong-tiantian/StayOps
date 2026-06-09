@@ -202,6 +202,7 @@ export function loadPromiseLedger(): PromiseLedgerRow[] {
     recommended_action: r.recommended_action,
     approval_required: toBool(r.approval_required),
     execution_state: r.execution_state,
+    category: r.category,
   }));
 }
 

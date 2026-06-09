@@ -2,20 +2,75 @@
 
 This document defines the outputs StayOps should produce. It is meant to keep the frontend, data layer, and agent workflow aligned.
 
-## Promise Candidate
+## Audit Response
 
-Produced after reading booking messages.
+`POST /api/audit/:booking_id` returns the layered agent-team output:
 
 ```json
 {
-  "promise_id": "P-004",
   "booking_id": "BKG-2026-0718-ACME",
-  "source_message_id": "MSG-001",
-  "source_quote": "We also need ... a projector in the meeting room",
-  "promise_text": "Projector in meeting room",
-  "promise_type": ["confirmed_commitment", "operational_requirement"],
-  "owner_department": "events",
-  "required_sources": ["event_spaces", "hotel_sop", "ops_tasks"]
+  "reasoning_source": "adk",
+  "info_analysis": {},
+  "agent_trace": [],
+  "decisions": [],
+  "task_plan": [],
+  "tool_calls": [],
+  "freshness_summary": []
+}
+```
+
+`reasoning_source` can be `adk`, `gemini`, or `rules`.
+
+## Agent Trace
+
+Produced with every audit so the UI can show the agent-team flow without inferring it
+from low-level tool calls.
+
+```json
+{
+  "stage_id": "task_planning",
+  "label": "Task Planning Agent",
+  "status": "complete",
+  "summary": "2 task handoff(s), 1 manager review request(s), 2 follow-up(s)."
+}
+```
+
+## Info Analysis
+
+Produced after reading booking messages and reservation context.
+
+```json
+{
+  "booking_id": "BKG-2026-0718-ACME",
+  "source_channel": "sales_email",
+  "intake_scope": "corporate_group_event",
+  "basic_info_status": "complete",
+  "basic_info": {
+    "company_name": "Acme Robotics",
+    "arrival_date": "2026-07-18",
+    "arrival_time": "11:00",
+    "departure_date": "2026-07-20",
+    "room_count": 12,
+    "room_mix": { "king": 8, "twin": 4 },
+    "meeting_room_id": "MR-BLUE",
+    "primary_contact": "Maya Chen"
+  },
+  "missing_basic_fields": [],
+  "extra_items": [
+    {
+      "item_id": "P-004",
+      "text": "Projector in meeting room",
+      "source_message_id": "MSG-001",
+      "source_quote": "a projector in the meeting room",
+      "domain": "event_av",
+      "subtype": "projector",
+      "clarity": "clear",
+      "required_fields": ["meeting_room", "meeting_start"],
+      "missing_fields": [],
+      "verification_route": "self_verifiable",
+      "rule_key": "projector_setup"
+    }
+  ]
 }
 ```
 
@@ -35,7 +90,9 @@ Produced before any promise decision that depends on operational data.
 
 ## Promise Decision
 
-Produced after checking freshness, SOP, inventory, tasks, and approvals.
+Produced after verification and deterministic safety-gate adjudication. `promise_type`
+remains in the response for current UI compatibility, but product docs should treat
+`info_analysis.extra_items[].domain/subtype/rule_key` as the real taxonomy.
 
 ```json
 {
@@ -56,6 +113,22 @@ Produced after checking freshness, SOP, inventory, tasks, and approvals.
   "approval_required": false,
   "execution_state": "task_created",
   "linked_task_id": "TASK-102"
+}
+```
+
+## Task Plan
+
+Produced after decisions. This is output-only in the current implementation; it does not
+mutate seeded demo tasks.
+
+```json
+{
+  "item_id": "P-004",
+  "action_type": "create_task",
+  "department": "events",
+  "description": "Create events setup task due 12:00",
+  "due_at": "2026-07-18T12:00:00",
+  "reason": "Verified against available evidence and deterministic safety rules; ready for department handoff."
 }
 ```
 
@@ -80,6 +153,27 @@ Created or read from the task board.
   }
 }
 ```
+
+## Approval State
+
+Historical approvals and current UI manager approvals are separate.
+
+- `historical_trace_approved`: seeded approvals from `approval_records.csv`; used as evidence in complaint trace.
+- `runtime_approved`: approvals clicked during the current demo/runtime.
+- `approved`: backward-compatible display union for the current UI.
+
+`GET /api/promises/seed/approve` returns:
+
+```json
+{
+  "approved": ["P-002", "P-004"],
+  "historical_trace_approved": ["P-002", "P-004"],
+  "runtime_approved": []
+}
+```
+
+`POST /api/promises/:promise_id/approve` writes to `runtime_approvals` and returns
+`approval_scope: "runtime_manager_decision"`.
 
 ## Tool Call
 

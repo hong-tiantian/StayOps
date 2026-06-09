@@ -13,5 +13,15 @@ export async function GET(
     return NextResponse.json({ error: "booking_not_found" }, { status: 404 });
   }
   const approvals = loadApprovalRecords().filter((a) => a.booking_id === booking_id);
-  return NextResponse.json({ reservation, approvals });
+  return NextResponse.json({
+    reservation,
+    // Backward-compatible field for existing consumers.
+    approvals,
+    approval_context: {
+      historical_trace_approvals: approvals,
+      runtime_manager_approvals: [],
+      note:
+        "CSV approval_records are historical trace evidence for the complaint demo. Runtime manager approvals are recorded through /api/promises/:promise_id/approve.",
+    },
+  });
 }
