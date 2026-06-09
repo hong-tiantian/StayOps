@@ -2,10 +2,12 @@ import { loadReservations, loadPromiseLedger, getOpsTasks } from "./data";
 import { ToolRunner } from "./tools";
 import { allFreshness } from "./freshness";
 import { runPromiseAgent, AgentProposal } from "./agent/promiseAgent";
-import { rulePromiseStatus, alignPromiseCategory, reconcileStatus } from "./agent/policy";
+import { rulePromiseStatus, alignPromiseRuleKey, reconcileStatus } from "./agent/policy";
 import { isFastTrack } from "./learning/feedbackStore";
 import { adkConfigured, runAdkAgent } from "./agent/adkClient";
-import { Department, PromiseDecision, PromiseStatus, PromiseType, Reservation, ToolCall } from "./types";
+import { analyzeBookingInfo } from "./infoAnalysis";
+import { planTasks } from "./taskPlanner";
+import { AgentTraceStage, Department, ExtraItem, InfoAnalysis, PromiseDecision, PromiseStatus, PromiseType, Reservation, TaskPlan, ToolCall } from "./types";
 
 /**
  * Promise audit orchestration.
@@ -40,7 +42,10 @@ function splitTypes(raw: string): PromiseType[] {
 export interface AuditResult {
   booking_id: string;
   reasoning_source: "adk" | "gemini" | "rules";
+  info_analysis: InfoAnalysis;
+  agent_trace: AgentTraceStage[];
   decisions: PromiseDecision[];
+  task_plan: TaskPlan[];
   tool_calls: ToolCall[];
   freshness_summary: Array<{
     source_name: string;
@@ -71,7 +76,8 @@ function buildDecision(
   status: PromiseStatus,
   evidence: string[],
   tool_calls: ToolCall[],
-  proposal?: AgentProposal
+  proposal?: AgentProposal,
+  extraItem?: ExtraItem
 ): PromiseDecision {
   // Learning reflux: if managers have repeatedly approved this promise, surface
   // it as a fast-track suggestion on the next audit (status still set by policy).
@@ -86,8 +92,8 @@ function buildDecision(
     promise_type: splitTypes(row.promise_type),
     status,
     owner_department: row.owner_department as Department,
-    source_message_id: "MSG-001",
-    source_quote: proposal?.source_quote || SOURCE_QUOTES[row.promise_id],
+    source_message_id: extraItem?.source_message_id || "MSG-001",
+    source_quote: proposal?.source_quote || extraItem?.source_quote || SOURCE_QUOTES[row.promise_id],
     evidence: finalEvidence,
     risk_reason: row.risk_reason,
     recommended_action: row.recommended_action,
@@ -131,17 +137,20 @@ function assembleFromProposals(
   agentToolCalls: ToolCall[],
   intakeCalls: ToolCall[]
 ): AuditResult {
-  const proposalByCategory = new Map<string, AgentProposal>();
+  const infoAnalysis = analyzeBookingInfo(booking_id, reservation);
+  const extraByRuleKey = new Map(infoAnalysis.extra_items.map((item) => [item.rule_key, item]));
+  const proposalByRuleKey = new Map<string, AgentProposal>();
   for (const p of proposals) {
-    const cat = alignPromiseCategory(p.promise_text);
-    if (cat && !proposalByCategory.has(cat)) proposalByCategory.set(cat, p);
+    const ruleKey = alignPromiseRuleKey(p.promise_text);
+    if (ruleKey && !proposalByRuleKey.has(ruleKey)) proposalByRuleKey.set(ruleKey, p);
   }
 
   const ledger = loadPromiseLedger().filter((p) => p.booking_id === booking_id);
   const decisions: PromiseDecision[] = ledger.map((row) => {
-    const proposal = proposalByCategory.get(row.category);
+    const ruleKey = row.category;
+    const proposal = proposalByRuleKey.get(ruleKey);
     const policyRunner = new ToolRunner();
-    const verdict = rulePromiseStatus(row.category, policyRunner, reservation);
+    const verdict = rulePromiseStatus(ruleKey, policyRunner, reservation);
     const { overruled } = reconcileStatus(verdict.status, proposal?.proposed_status);
 
     const evidence = [row.evidence, ...verdict.evidence];
@@ -153,13 +162,17 @@ function assembleFromProposals(
       }
       for (const e of proposal.evidence ?? []) evidence.push(`AI: ${e}`);
     }
-    return buildDecision(row, verdict.status, evidence, policyRunner.calls, proposal);
+    return buildDecision(row, verdict.status, evidence, policyRunner.calls, proposal, extraByRuleKey.get(ruleKey));
   });
+  const taskPlan = planTasks(infoAnalysis, decisions);
 
   return {
     booking_id,
     reasoning_source: source,
+    info_analysis: infoAnalysis,
+    agent_trace: buildAgentTrace(source, infoAnalysis, decisions, taskPlan),
     decisions,
+    task_plan: taskPlan,
     tool_calls: [...intakeCalls, ...agentToolCalls],
     freshness_summary: freshnessSummary(),
   };
@@ -179,18 +192,93 @@ export function runDeterministicAudit(booking_id: string): AuditResult {
   const intake = new ToolRunner();
   const reservation = intake.get_reservation(booking_id);
   intake.search_messages(booking_id);
+  const infoAnalysis = analyzeBookingInfo(booking_id, reservation);
+  const extraByRuleKey = new Map(infoAnalysis.extra_items.map((item) => [item.rule_key, item]));
 
   const ledger = loadPromiseLedger().filter((p) => p.booking_id === booking_id);
   const allCalls: ToolCall[] = [...intake.calls];
 
   const decisions: PromiseDecision[] = ledger.map((row) => {
+    const ruleKey = row.category;
     const policyRunner = new ToolRunner();
-    const verdict = rulePromiseStatus(row.category, policyRunner, reservation);
+    const verdict = rulePromiseStatus(ruleKey, policyRunner, reservation);
     allCalls.push(...policyRunner.calls);
-    return buildDecision(row, verdict.status, [row.evidence, ...verdict.evidence], policyRunner.calls);
+    return buildDecision(
+      row,
+      verdict.status,
+      [row.evidence, ...verdict.evidence],
+      policyRunner.calls,
+      undefined,
+      extraByRuleKey.get(ruleKey)
+    );
   });
+  const taskPlan = planTasks(infoAnalysis, decisions);
 
-  return { booking_id, reasoning_source: "rules", decisions, tool_calls: allCalls, freshness_summary: freshnessSummary() };
+  return {
+    booking_id,
+    reasoning_source: "rules",
+    info_analysis: infoAnalysis,
+    agent_trace: buildAgentTrace("rules", infoAnalysis, decisions, taskPlan),
+    decisions,
+    task_plan: taskPlan,
+    tool_calls: allCalls,
+    freshness_summary: freshnessSummary(),
+  };
+}
+
+function buildAgentTrace(
+  source: AuditResult["reasoning_source"],
+  infoAnalysis: InfoAnalysis,
+  decisions: PromiseDecision[],
+  taskPlan: TaskPlan[]
+): AgentTraceStage[] {
+  const approvalCount = taskPlan.filter((plan) => plan.action_type === "request_manager_approval").length;
+  const followUpCount = taskPlan.filter((plan) => plan.action_type === "create_follow_up").length;
+  const taskCount = taskPlan.filter((plan) => plan.action_type === "create_task").length;
+
+  return [
+    {
+      stage_id: "info_analysis",
+      label: "Info Analysis",
+      status: "complete",
+      summary: `${infoAnalysis.intake_scope}; basic info ${infoAnalysis.basic_info_status}; ${infoAnalysis.extra_items.length} extra item(s) extracted.`,
+    },
+    {
+      stage_id: "verification_agent",
+      label: "Verification Agent",
+      status: source === "rules" ? "fallback" : "complete",
+      summary:
+        source === "adk"
+          ? "ADK / Agent Builder path proposed evidence-backed results."
+          : source === "gemini"
+            ? "In-app Gemini loop proposed evidence-backed results."
+            : "Agent unavailable; deterministic tools and rules produced the audit.",
+    },
+    {
+      stage_id: "decision_rules",
+      label: "Decision Rules / Safety Gate",
+      status: "complete",
+      summary: `${decisions.length} decision(s) adjudicated; final executable statuses come from deterministic policy.`,
+    },
+    {
+      stage_id: "task_planning",
+      label: "Task Planning Agent",
+      status: "complete",
+      summary: `${taskCount} task handoff(s), ${approvalCount} manager review request(s), ${followUpCount} follow-up(s).`,
+    },
+    {
+      stage_id: "evaluation_recovery",
+      label: "Evaluation & Recovery",
+      status: "pending",
+      summary: "Runs when a complaint is submitted; traces complaint signals to ledger items and linked tasks.",
+    },
+    {
+      stage_id: "arize_monitoring",
+      label: "Arize Monitoring / Audit",
+      status: "pending",
+      summary: "Phoenix tracing/self-review is observational only; it does not change business decisions.",
+    },
+  ];
 }
 
 /** Caches successful agent audits so repeated demo runs return instantly. */

@@ -43,7 +43,8 @@ Not yet complete:
   does not yet fetch per-promise trace/eval evidence.
 - Arize observability does not replace deterministic policy and does not directly change
   promise classification.
-- Google Cloud Agent Builder orchestration is still planned, not yet integrated.
+- Local ADK / Agent Builder orchestration is implemented when `ADK_AGENT_URL` is
+  configured; Cloud Run deployment and per-promise Phoenix trace linking are still pending.
 
 ## Target MCP Use
 

@@ -1,7 +1,7 @@
 # builder.md — Google Cloud Agent Builder 接入进度
 
 > **用途:** 实时记录"把 StayOps 的 agent 编排迁移到 Google Cloud Agent Builder"这件事的目标、决策和进度。
-> 这是 `AGENTS.md` 顶部 OPEN DECISION（🟡 *Google Cloud Agent Builder orchestration not done yet*）的执行文档。
+> 这是 `AGENTS.md` 顶部 OPEN DECISION（🟡 *Google Cloud Agent Builder / ADK cloud submission path not done yet*）的执行文档。
 > **最后更新:** 2026-06-08
 
 ---
@@ -11,18 +11,18 @@
 比赛（Google Cloud Rapid Agent Hackathon，**截止 2026-06-11 14:00 PT**）Stage One 硬性要求：
 
 1. ✅ **用 Gemini** 做模型 —— 已有（`@google/genai`，`src/lib/gemini.ts`）。
-2. ❌ **用 Google Cloud Agent Builder 做编排（managed orchestration）** —— **本文档要补的缺口**。
+2. 🟡 **用 Google Cloud Agent Builder / ADK 做编排（managed orchestration path）** —— 本地链路已跑通，Cloud Run 部署和提交材料仍待完成。
 3. 🟡 **集成一个 partner 的 MCP** —— 选了 Arize/Phoenix，代码里有，待确认"够分量"。
 4. ⬜ 提交物：公开 repo + OSI license（已有 MIT）+ **托管 URL** + 3 分钟 demo 视频。
 
 **当前缺口精确定位：**
 ```
-现在: Next.js API route ──直接调──> Gemini API
-                                    ↑ 编排是手写 for 循环 (src/lib/agent/promiseAgent.ts)
-目标: Next.js API route ──调用──> ADK Agent (跑在 Agent Builder 运行时 / Cloud Run)
-                                    ↑ 内部再调 Gemini + 现有工具 + Arize MCP
+fallback: Next.js API route ──直接调──> Gemini API
+                                      ↑ 编排是手写 for 循环 (src/lib/agent/promiseAgent.ts)
+primary:  Next.js API route ──调用──> ADK Agent (本地已跑通；目标 Cloud Run)
+                                      ↑ 内部再调 Gemini + 现有工具 + Arize MCP
 ```
-只缺中间"用 Agent Builder 框架编排"这一层。工具（`agentTools.ts`）、确定性兜底（`policy.ts`）、Arize 追踪全部保留。
+中间"用 Agent Builder/ADK 框架编排"这一层已在本地实现；剩余缺口是云端部署、提交文档、Arize trace 关联和最终核验。工具（`agentTools.ts`）、确定性兜底（`policy.ts`）、Arize 追踪全部保留。
 
 ---
 
@@ -80,10 +80,13 @@
 
 > 结构备注：真正的 agent 服务 = `agent/promise_agent/`（自带 node_modules）。外层 `agent/` 早期多余产物（package.json/lock/node_modules）已于 2026-06-09 清理，现仅余 `.gitignore` + `promise_agent/`。
 
-### 阶段 2 — 接线 + 收敛 + Arize 自查　【⬜ 未开始】
-- [ ] **outputSchema 收敛**：给 `rootAgent` 加 `outputSchema`，把自由文本收敛成标准枚举（verifiable/at_risk/missing_info/conflict/needs_approval/cannot_confirm）
-- [ ] **Next.js 接 agent**：API route 调 agent 服务；保留 `policy.ts` 做最终裁决（把 `conflict` 收回 `at_risk` 等），agent 不可达时回退确定性引擎
-- [ ] **Arize 事后自查（设计已定，见下）**
+### 阶段 2 — 接线 + 收敛 + Arize 自查　【🟡 接线已完成（队友 char-aaa），余 Arize】
+- [x] **枚举收敛**：ADK 不能同时用 outputSchema + 工具，改用 **prompt 收敛**成标准枚举（`agent/promise_agent/server.ts`）
+- [x] **Next.js 接 agent**：队友新增 `agent/promise_agent/server.ts`（express `POST /audit`）+ `src/lib/agent/adkClient.ts`；`classifier.ts` 把 **ADK 设为主编排**（`ADK_AGENT_URL` 配了走 ADK，否则回退 Gemini 循环 → policy）。policy 仍做最终裁决。
+- [ ] **Arize 事后自查（设计已定，见下）** ← 阶段2 剩这一块
+
+> **运行全栈（已变）：** ① 根 `npm run dev`(:3000) ② `agent/promise_agent` 里 `node --import tsx server.ts`(:8080) ③ Next.js 环境设 `ADK_AGENT_URL=http://localhost:8080` 激活 ADK 主编排。
+> **合并记录（2026-06-09）：** merge `origin/char-aaa/main-work`（commits a975f97、014f243）。已核验：ACME 仍 6 条 promise、6 状态不变、TASK-102 due=14:00、TASK-103=open，不变量完好；ACME 行仅新增 `category` 列。
 
 **Arize 自查设计（"够分量"的 MCP 用法，非装饰）：**
 > agent 出完决策后，跑独立评估步骤（Gemini LLM-as-judge），对每条决策做 4 项检查 → 结论写入 Phoenix（标注/审计日志）→ 经理面板经 **phoenix-mcp** 读回 → 给未通过项打 ⚠️「建议人工复核」。**评估不改判定，只替经理把关**（human-in-control）。
@@ -96,9 +99,9 @@
 
 ### 阶段 3 — 部署前端 + 文档/提交物　【⬜ 未开始】
 - [ ] Next.js 部署到 **Cloud Run**（⚠️ 不用 Vercel）→ 拿到公开托管 URL
-- [ ] 更新 README / 架构图，说明 Agent Builder 编排路径
+- [~] 更新 README / 架构图，说明 Agent Builder 编排路径
 - [ ] 录 3 分钟 demo 视频；确认 repo 公开 + MIT license
-- [ ] 删除 `AGENTS.md` 里 🟡 OPEN DECISION 关于 Agent Builder 的那条
+- [ ] 更新 `AGENTS.md` 里 🟡 OPEN DECISION：本地 ADK 已实现，Cloud Run/提交仍待完成
 
 ---
 

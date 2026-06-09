@@ -15,7 +15,9 @@ import ToolCallLog from "@/components/ToolCallLog";
 import SpotlightCard from "@/components/SpotlightCard";
 import ManagerBriefing from "@/components/ManagerBriefing";
 import SelfReview from "@/components/SelfReview";
+import AgentTeamFlow from "@/components/AgentTeamFlow";
 import {
+  AgentTraceStage,
   FreshnessResult,
   Message,
   PromiseDecision,
@@ -57,6 +59,7 @@ export default function Page() {
 
   const [decisions, setDecisions] = useState<PromiseDecision[]>([]);
   const [auditCalls, setAuditCalls] = useState<ToolCall[]>([]);
+  const [agentTrace, setAgentTrace] = useState<AgentTraceStage[]>([]);
   const [reasoningSource, setReasoningSource] = useState<"adk" | "gemini" | "rules" | null>(null);
   const [tasks, setTasks] = useState<DecoratedTask[]>([]);
   const [approved, setApproved] = useState<Set<string>>(new Set());
@@ -81,6 +84,7 @@ export default function Page() {
       const j = await r.json();
       setDecisions(j.decisions);
       setAuditCalls(j.tool_calls);
+      setAgentTrace(j.agent_trace ?? []);
       setFreshness(j.freshness_summary);
       setReasoningSource(j.reasoning_source ?? null);
       await refreshTasks();
@@ -208,6 +212,7 @@ export default function Page() {
             lang={lang}
             reasoningSource={reasoningSource}
           />
+          <AgentTeamFlow stages={agentTrace} lang={lang} />
           <BookingHeader reservation={reservation} lang={lang} />
           <DataFreshnessPanel sources={freshness} demoNow={demoNow} lang={lang} onToggle={toggleStaleSource} />
           <div className="grid gap-4 lg:grid-cols-2">

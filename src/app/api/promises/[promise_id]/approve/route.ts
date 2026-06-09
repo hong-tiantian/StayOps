@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getOpsTasks, loadPromiseLedger } from "@/lib/data";
+import { getOpsTasks, loadApprovalRecords, loadPromiseLedger } from "@/lib/data";
 import { getDb } from "@/lib/store/db";
 import { recordFeedback } from "@/lib/learning/feedbackStore";
 
@@ -7,14 +7,31 @@ export const dynamic = "force-dynamic";
 
 function addApproval(promise_id: string): void {
   getDb()
-    .prepare("INSERT OR IGNORE INTO approvals (promise_id, at) VALUES (?, ?)")
+    .prepare("INSERT OR IGNORE INTO runtime_approvals (promise_id, at) VALUES (?, ?)")
     .run(promise_id, new Date().toISOString());
 }
 
-function listApprovals(): string[] {
-  return (getDb().prepare("SELECT promise_id FROM approvals").all() as Array<{ promise_id: string }>).map(
+function listRuntimeApprovals(): string[] {
+  return (getDb().prepare("SELECT promise_id FROM runtime_approvals").all() as Array<{ promise_id: string }>).map(
     (r) => r.promise_id
   );
+}
+
+function listHistoricalApprovals(): string[] {
+  return loadApprovalRecords()
+    .filter((record) => record.decision === "approved")
+    .map((record) => record.promise_id);
+}
+
+function approvalState() {
+  const runtime_approved = listRuntimeApprovals();
+  const historical_trace_approved = listHistoricalApprovals();
+  return {
+    // Backward-compatible display set for the current UI.
+    approved: Array.from(new Set([...historical_trace_approved, ...runtime_approved])),
+    historical_trace_approved,
+    runtime_approved,
+  };
 }
 
 export async function POST(
@@ -40,7 +57,9 @@ export async function POST(
   return NextResponse.json({
     promise_id,
     status: "approved",
+    approval_scope: "runtime_manager_decision",
     linked_task: linkedTask,
+    approval_state: approvalState(),
     note:
       promise_id === "P-002"
         ? "Front desk room-blocking task TASK-103 displayed and kept OPEN (room not yet locked)."
@@ -49,5 +68,5 @@ export async function POST(
 }
 
 export async function GET() {
-  return NextResponse.json({ approved: listApprovals() });
+  return NextResponse.json(approvalState());
 }

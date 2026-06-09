@@ -1,61 +1,42 @@
-# Agent Decision Design
+# Agent Team Design
 
-StayOps should not behave like a free-form chatbot. Hotel operations need traceable decisions, evidence, and human approval. The agent should be designed as a stateful decision system.
+StayOps is a promise verification and recovery layer, not a free-form chatbot and not a
+generic task manager. The agent team keeps the duty manager in control: Gemini can
+extract and propose, but deterministic rules and manager approval decide what can be
+promised or handed off.
 
-## Core Loop
-
-Every promise moves through the same decision loop:
+## Core Flow
 
 ```text
-extract promise
--> identify promise type
--> load hotel profile and rules
--> plan required data checks
--> check source freshness
--> call operational tools
--> evaluate evidence
--> decide next action
--> request approval or create task
--> monitor execution
--> trace failure if a complaint arrives
+guest/order input
+-> Info Analysis
+-> Basic info completeness
+-> Extra item extraction
+-> Verification Agent
+-> Decision Rules / Safety Gate
+-> Task Planning Agent
+-> Evaluation & Recovery
+-> Arize Monitoring / Audit
 ```
 
-The agent is allowed to reason about what to check next, but it is not allowed to make unsupported commitments.
+## 1. Info Analysis
 
-## Agent Layers
+Responsibilities:
 
-### 1. Promise Extractor
+- Read reservation context and source messages.
+- Identify intake channel and scope.
+- Check scope-specific basic info completeness.
+- Extract extra items only when basic info is complete enough.
+- Attach source message IDs and source quotes.
+- Assign `domain`, `subtype`, internal `rule_key`, clarity, missing fields, and verification route.
 
-Reads guest messages, sales notes, and complaints. It produces structured promise candidates.
+For Acme, the expected scope is `corporate_group_event`, the basic info is complete, and
+the six extra items are early check-in, quiet king room, gluten-free breakfast, projector,
+airport transfer, and company invoice.
 
-Example output:
+## 2. Verification Agent
 
-```json
-{
-  "promise_text": "quiet king room away from elevators for the VP",
-  "promise_type": ["preference", "risk_sensitive_request"],
-  "owner_department": "front_desk",
-  "source_message_id": "MSG-001"
-}
-```
-
-### 2. Decision Planner
-
-Decides what the agent must check before making a decision.
-
-For a quiet-room request, it should plan:
-
-- Check room inventory freshness.
-- Check room readiness freshness.
-- Retrieve quiet-room SOP.
-- Check candidate rooms against quiet-zone and elevator constraints.
-- Check existing room-blocking tasks.
-
-### 3. Tool Executor
-
-Calls operational tools and returns structured evidence. This layer does not make business decisions.
-
-Example tools:
+The verification agent gathers evidence. It can call read-only tools such as:
 
 - `check_data_freshness`
 - `get_reservation`
@@ -63,125 +44,66 @@ Example tools:
 - `check_room_readiness`
 - `check_event_space`
 - `retrieve_sop`
-- `check_existing_tasks`
-- `create_ops_task`
-- `trace_broken_promise`
+- `check_inventory`
 
-### 4. Evidence Evaluator
+It should not create tasks directly and should not upgrade a promise to a guarantee.
 
-Turns tool results into a promise status.
+## 3. Decision Rules / Safety Gate
+
+The deterministic policy layer is the final executable decision maker.
 
 Rules:
 
 - If a required source is stale, status cannot be `verifiable`.
-- If required guest fields are missing, status must be `missing_info`.
-- If manager approval is required, the agent cannot execute directly.
-- If status is `cannot_confirm`, guest-facing language cannot contain a guarantee.
-- If an existing task violates SOP due time, the agent must flag it.
+- If required guest/company fields are missing, status is `missing_info`.
+- If SOP requires approval, the agent cannot auto-commit.
+- Group early check-in cannot be guaranteed without enough inspected/released rooms.
+- Quiet king for a VP remains `at_risk` until manager approval and room lock.
+- Projector setup must flag the SOP due-time mismatch: due at 12:00, not 14:00.
 
-### 5. Action Decider
+Gemini proposes. Rules decide.
 
-Chooses the next operational action.
+## 4. Task Planning Agent
 
-Status-to-action mapping:
+Task planning turns verified or guarded outcomes into proposed next actions without
+mutating seeded demo tasks by default.
 
-| Status | Next Action |
+Routing:
+
+| Condition | Plan |
 | --- | --- |
-| `verifiable` | Create or update the department task. |
-| `at_risk` | Request manager approval or suggest an alternative. |
-| `missing_info` | Create a guest/company follow-up. |
-| `cannot_confirm` | Draft cautious language and avoid guarantee wording. |
-| `conflict` | Escalate and block execution. |
-| `task_created` | Monitor task status and due time. |
-| `failed` | Trigger complaint recovery. |
+| Basic info incomplete | Create targeted follow-up. |
+| Basic complete + no extra | Draft safe confirmation summary. |
+| Extra `verifiable` | Propose department handoff/task. |
+| Extra `at_risk` + approval required | Request manager approval. |
+| Extra `missing_info` | Create follow-up task/question. |
+| Extra `cannot_confirm` | Draft cautious reply; no guarantee. |
+| Extra `conflict` | Escalate. |
 
-### 6. Monitor And Recovery
+## 5. Evaluation & Recovery
 
-The agent continues after audit. It checks whether approved promises became tasks, whether tasks are overdue, and whether a complaint matches a prior promise.
+Evaluation is post-execution. It checks whether approved/created handoffs were completed
+and traces complaints back to the exact promise and task failure.
 
-Example:
+For the Acme demo, recovery is deterministic but no longer a pure fixed-ID branch:
+complaint signals map to ledger `rule_key` values, then to linked tasks. The expected
+trace still resolves to the uncompleted room-lock task `TASK-103` and projector task
+`TASK-102` being due at 14:00 when SOP required 12:00.
 
-```json
-{
-  "event": "task_overdue",
-  "promise_id": "P-002",
-  "task_id": "TASK-103",
-  "next_action": "escalate_to_front_desk_manager",
-  "reason": "VIP room-blocking task is still open before arrival."
-}
-```
+## 6. Arize Monitoring / Audit
 
-## Promise State
+Arize/Phoenix is an observability and self-review layer. It traces Gemini reasoning,
+tool calls, policy overrides, and manager feedback. It must not change business
+decisions or bypass deterministic policy.
 
-Each promise should be stored with state, not recomputed from scratch as a loose chat response.
+## Current Implementation Status
 
-```json
-{
-  "promise_id": "P-002",
-  "state": "awaiting_approval",
-  "status": "at_risk",
-  "required_sources": ["room_inventory", "room_readiness", "hotel_sop"],
-  "freshness": {
-    "room_inventory": "fresh",
-    "room_readiness": "fresh",
-    "hotel_sop": "fresh"
-  },
-  "approval_required": true,
-  "next_action": "manager_review",
-  "linked_task_id": null
-}
-```
-
-Recommended states:
-
-```text
-new
-needs_data
-evaluating
-awaiting_approval
-approved
-task_ready
-task_created
-monitoring
-at_risk_of_failure
-failed
-recovery_pending
-recovery_completed
-resolved
-```
-
-## Role Of Gemini
-
-Gemini should help with:
-
-- Extracting promises from messy messages.
-- Summarizing evidence.
-- Explaining why a decision was made.
-- Drafting guest replies.
-- Drafting recovery plans.
-
-Gemini should not bypass:
-
-- Freshness gates.
-- SOP rules.
-- Approval rules.
-- Missing information checks.
-- Task due-time validation.
-
-## Role Of Rules
-
-Rules and tool evidence should control the final executable decision. The LLM can propose a decision, but the policy layer must validate it before the UI shows it as actionable.
-
-## Current MVP Gap
-
-The current MVP still uses a deterministic demo workflow and hard-coded promise IDs. The next engineering step is to replace `P-001` to `P-006` switch logic with:
-
-```text
-PromiseCandidate
--> DecisionPlanner
--> ToolExecutor
--> EvidenceEvaluator
--> ActionDecider
--> PromiseState
-```
-
+- Local ADK / Agent Builder service path exists under `agent/promise_agent`.
+- `ADK_AGENT_URL` makes ADK the primary orchestration path when configured.
+- The in-app Gemini ReAct loop remains a fallback.
+- Deterministic policy remains the final safety decision and offline fallback.
+- Info Analysis and output-only Task Planning are exposed through the audit result.
+- Audit responses include an `agent_trace` stage list for future UI display.
+- Historical approval records are separated from runtime manager approvals.
+- Cloud Run deployment, per-promise Phoenix trace links, and broader generalized recovery
+  remain pending.

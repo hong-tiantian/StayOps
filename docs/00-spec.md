@@ -8,7 +8,7 @@
 StayOps Promise Ledger is an operational agent for boutique hotels that audits guest-facing promises before arrival, routes verified actions to hotel teams, and traces complaints back to the exact broken promise.
 
 **Core idea:**
-The agent does not simply convert guest messages into tasks. It first determines whether each promise or request is executable, risky, missing information, conflicting, or requiring approval. After manager approval, it creates department tasks. If a complaint happens, it traces the failure across the promise ledger, approval log, and task board.
+The agent does not simply convert guest messages into tasks. It first determines whether each promise or request (!!note) is executable, risky, missing information, conflicting, or requiring approval. After manager approval, it creates department tasks. If a complaint happens, it traces the failure across the promise ledger, approval log, and task board.
 
 **Demo thesis:**
 The product has two connected value propositions:
@@ -68,7 +68,7 @@ Expected first-pass results:
 
 After manager approval, the agent creates:
 
-* F&B task for gluten-free breakfast
+* Food & Beverage task for gluten-free breakfast
 * Events task for projector setup
 * Front desk room-blocking task for quiet king room
 * Sales follow-up for billing information
@@ -77,7 +77,8 @@ After manager approval, the agent creates:
 
 Second demo act: complaint handling.
 
-Guest complaint:
+
+Guest complaint:(!!note：当下complaint或者后来complaint？)
 
 > “The VP was promised a quiet king room, but was placed near the elevator, and the projector was not ready when the meeting started.”
 
@@ -104,60 +105,117 @@ Agent outputs:
 
 ## 3. Business Definitions
 
-### 3.1 Promise
+### 3.1 Order / Intake
 
-A **promise** is any guest-facing statement, request, preference, operational requirement, or commercial commitment that may affect the guest experience or require hotel execution.
+StayOps starts before a promise ledger exists. The first object is an incoming order or stay
+context from email, sales note, web/app form, OTA message, or future phone intake.
 
-Not every promise is guaranteed. The system must distinguish between:
+The Info Analysis layer must separate:
 
-* Confirmed commitments
-* Requests
-* Preferences
-* Missing-information items
-* Risky commitments
-* Operational requirements
+* **Basic info**: the minimum stay/order context needed to understand the booking.
+* **Extra info**: special requests, preferences, operational requirements, commercial items,
+  exceptions, or commitments that may require verification and handoff.
 
-### 3.2 Promise Type
+Basic info is scope-dependent. A corporate group event needs company, dates, room count,
+room mix, contact, billing owner, meeting room, and meeting baseline. An individual stay
+has a smaller checklist.
 
-**Promise Type** describes what the promise is. It usually does not change.
+### 3.2 Basic Info Status
 
-| Type                      | Definition                                                                               | Example                                        |
-| ------------------------- | ---------------------------------------------------------------------------------------- | ---------------------------------------------- |
-| `confirmed_commitment`    | Hotel has explicitly committed to delivering it.                                         | “Projector will be ready in the meeting room.” |
-| `request_noted`           | Guest requested it, but hotel cannot guarantee it yet.                                   | Early check-in.                                |
-| `preference`              | Guest preference, not automatically guaranteed.                                          | Quiet king room away from elevator.            |
-| `operational_requirement` | Requires execution by a department.                                                      | Gluten-free breakfast, projector setup.        |
-| `commercial_requirement`  | Billing, contract, payment, invoice, tax, or company account item.                       | Company invoice.                               |
-| `missing_info_request`    | Execution is possible but required information is missing.                               | Airport transfer without flight number.        |
-| `risk_sensitive_request`  | Possible, but constrained by limited inventory, timing, staffing, or manager discretion. | Quiet king room for VP.                        |
+Basic info can be:
 
-### 3.3 Promise Status
+| Status | Definition | Next Action |
+| --- | --- | --- |
+| `complete` | The booking/stay can be understood enough to evaluate extras. | Extract and verify extra items. |
+| `missing_info` | Required stay/order fields are absent. | Ask targeted follow-up questions. |
+| `conflict` | Basic fields contradict each other or hotel records. | Escalate or clarify. |
+| `cannot_confirm` | The stay/order cannot be safely confirmed from current evidence. | Draft cautious reply; do not verify extras as commitments. |
 
-**Promise Status** describes the current executable state. It can change as data is checked, approval happens, tasks are completed, or complaints occur.
+If basic info is incomplete, the system should not pretend that all extras are executable.
 
-| Status           | Definition                                                                                              | Allowed Next Action                                    |
-| ---------------- | ------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
-| `verifiable`     | Data proves it can be executed.                                                                         | Create task after approval or auto-create if low risk. |
-| `at_risk`        | The promise is theoretically possible but constrained by inventory, staffing, timing, or uncertainty.   | Require manager review or alternative plan.            |
-| `missing_info`   | Required information is absent.                                                                         | Generate follow-up question.                           |
-| `conflict`       | Promise conflicts with SOP, availability, existing booking, resource, or task.                          | Block execution; escalate.                             |
-| `needs_approval` | The item involves exception handling, compensation, upgrade, room priority, or guest-facing commitment. | Wait for manager approval.                             |
-| `cannot_confirm` | Data is insufficient, stale, or not reliable enough to confirm.                                         | Do not promise; generate cautious guest reply.         |
-| `approved`       | Manager approved the recommended action.                                                                | Create or update task.                                 |
-| `task_created`   | Operational task has been created.                                                                      | Monitor task status.                                   |
-| `completed`      | Task was completed.                                                                                     | Mark promise fulfilled.                                |
-| `failed`         | Promise was not fulfilled or complaint indicates failure.                                               | Trigger recovery.                                      |
-| `resolved`       | Recovery action completed.                                                                              | Close complaint and log postmortem.                    |
+### 3.3 Extra Item Taxonomy
 
-### 3.4 Type vs Status
+Extra items use three separate concepts:
 
-Example:
+| Field | Purpose | Example |
+| --- | --- | --- |
+| `domain` | Broad operational area. | `room_preference`, `event_av`, `transport` |
+| `subtype` | Specific pattern inside the domain. | `quiet_room`, `projector`, `airport_transfer` |
+| `rule_key` | Internal deterministic verifier key. | `quiet_room`, `projector_setup` |
 
-| Promise                | Type                                              | Status                                                                                                                       |
-| ---------------------- | ------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| Quiet king room for VP | `preference`, `risk_sensitive_request`            | Starts as `at_risk`; after approval and room lock becomes `task_created`; if guest gets room near elevator becomes `failed`. |
-| Projector              | `confirmed_commitment`, `operational_requirement` | Starts as `verifiable`; after task creation becomes `task_created`; if not ready becomes `failed`.                           |
-| Company invoice        | `commercial_requirement`                          | Starts as `missing_info`; after billing contact received becomes `verifiable`.                                               |
+Current CSV `category` is a compatibility field for `rule_key`. It is not the full
+business taxonomy.
+
+Required domains:
+
+```text
+arrival_exception
+room_preference
+fb_requirement
+event_av
+transport
+commercial
+exception_value
+maintenance_service
+lost_and_found
+other
+```
+
+### 3.4 Verification Route And Verification Status
+
+Verification route describes what kind of checking or control an extra item needs:
+
+```text
+self_verifiable
+needs_human_approval
+missing_guest_info
+cannot_confirm_yet
+conflict_with_policy_or_inventory
+```
+
+Verification status is the current executable evidence result:
+
+| Status | Definition | Allowed Next Action |
+| --- | --- | --- |
+| `verifiable` | Evidence and SOP support execution. | Plan department handoff/task. |
+| `at_risk` | Possible but constrained by inventory, staffing, timing, or manager discretion. | Manager review, alternative, or guarded handoff. |
+| `missing_info` | Required guest/company fields are absent. | Create follow-up. |
+| `conflict` | Evidence conflicts with SOP, availability, booking data, or tasks. | Block execution; escalate. |
+| `needs_approval` | Value, priority, exception, or risk requires human approval. | Wait for manager decision. |
+| `cannot_confirm` | Evidence is insufficient, stale, or unreliable for a guarantee. | Draft cautious reply; do not promise. |
+
+Do not use `approved`, `task_created`, `completed`, `failed`, or `resolved` as verification
+statuses in product language. Those belong to handoff/task state or service result.
+
+### 3.5 Handoff State And Service Result
+
+Task/handoff state is separate from verification:
+
+```text
+not_needed
+not_created
+follow_up_created
+approval_requested
+task_planned
+task_created
+in_progress
+completed
+failed
+```
+
+Service result is post-execution evaluation:
+
+```text
+unknown
+fulfilled
+failed
+recovered
+exceeded
+```
+
+Service level belongs here, not in initial request classification. A good review or no
+complaint is only an outcome signal; it does not prove that a verified/approved promise
+was fulfilled.
 
 ---
 
@@ -166,15 +224,15 @@ Example:
 ### 4.1 Pre-arrival Promise Audit
 
 1. User selects booking `BKG-2026-0718-ACME`.
-2. Agent checks data freshness for required sources.
-3. Agent searches all messages for the booking.
-4. Agent extracts promise candidates.
-5. Agent retrieves reservation context.
-6. Agent checks room readiness, room constraints, event space, SOP, billing, transport vendor, and task board.
-7. Agent classifies each promise by type and status.
-8. Agent generates Promise Ledger.
-9. Manager approves, edits, or rejects actions.
-10. Agent writes approved actions into task board and audit log.
+2. Info Analysis reads messages and reservation context.
+3. Info Analysis determines intake scope and basic info completeness.
+4. If basic info is incomplete, the agent asks targeted follow-up questions.
+5. If basic info is complete, Info Analysis extracts extra items with source quotes.
+6. Each extra item receives domain, subtype, rule key, clarity, missing fields, and verification route.
+7. Verification Agent calls read-only tools for evidence.
+8. Deterministic Decision Rules / Safety Gate produces the final verification status.
+9. Task Planning Agent outputs follow-up, manager review, cautious reply, or department handoff plans.
+10. Manager approves, edits, or rejects actions before live operational mutation.
 
 ### 4.2 Complaint Recovery
 
@@ -901,7 +959,7 @@ Header should include:
 * Product name: `StayOps`
 * Search: booking ID, company name, room, task, complaint
 * Current context: `BKG-2026-0718-ACME / Acme Robotics`
-* Data freshness badge: `Fivetran Sync: Fresh / Warning`
+* Data freshness badge: `Data Freshness: Fresh / Warning`
 * Button: `Run Promise Audit`
 * Button: `Trace Complaint`
 * Button: `Create Task`
@@ -1210,15 +1268,11 @@ Recovery plan:
 ### 11.1 MVP Architecture
 
 ```text
-Synthetic CSV / Google Sheets
-        ↓
-Fivetran sync
-        ↓
-BigQuery or Cloud SQL
+Synthetic CSV / future hotel data adapters
         ↓
 Tool Layer
         ↓
-Google Cloud Agent Builder + Gemini
+Google Cloud Agent Builder / ADK + Gemini
         ↓
 Web App UI
         ↓
@@ -1229,16 +1283,16 @@ Promise Ledger + Task Board + Timeline + Map
 
 | Layer               | MVP Option                                                              |
 | ------------------- | ----------------------------------------------------------------------- |
-| Data source         | CSV or Google Sheets                                                    |
-| Data sync           | Fivetran connector / Fivetran MCP / mocked connector metadata if needed |
-| Data warehouse      | BigQuery preferred                                                      |
-| Agent orchestration | Google Cloud Agent Builder                                              |
+| Data source         | CSV fixture now; future PMS / warehouse adapters                        |
+| Data freshness      | Deterministic source freshness checks                                   |
+| Data warehouse      | BigQuery or Cloud SQL in future                                         |
+| Agent orchestration | Local ADK / Agent Builder path implemented; Cloud Run deployment pending |
 | Reasoning           | Gemini                                                                  |
 | Backend             | Python FastAPI or Node/Next API routes                                  |
 | Frontend            | Next.js + React                                                         |
 | UI components       | Tables, kanban board, timeline, simplified map                          |
 | Persistence         | BigQuery / Firestore / local JSON for MVP                               |
-| Deployment          | Cloud Run / Firebase Hosting / Vercel if allowed                        |
+| Deployment          | Cloud Run / Firebase Hosting                                            |
 
 ### 11.3 Required Backend Endpoints
 
@@ -1402,7 +1456,7 @@ Each tool call must be visible in either:
 The UI must include:
 
 * Promise Ledger table
-* Fivetran sync freshness panel
+* Data freshness panel
 * Kanban-style task board
 * Timeline view
 * Simplified hotel map / room map
@@ -1417,7 +1471,7 @@ The 3-minute demo must show:
 ```text
 0:00–0:25   Problem: broken hotel promises, not slow replies
 0:25–0:50   Corporate booking email and fragmented hotel data
-0:50–1:10   Fivetran freshness / synced data sources
+0:50–1:10   Data freshness and audited source evidence
 1:10–1:50   Promise Ledger with 6 classified promises
 1:50–2:15   Manager approval and task board write-back
 2:15–2:35   Map and timeline showing room / time dependencies
@@ -1426,6 +1480,24 @@ The 3-minute demo must show:
 ```
 
 ---
+
+## 13.6 Future Real-Time Operations Board
+
+Phone intake and live negotiation are future scope. When added, StayOps should support a
+duty-manager operations board that shows near-current signals before staff confirms an
+unverified request:
+
+* room inventory and readiness
+* housekeeping capacity
+* event-space and AV availability
+* transport vendor availability
+* open risky tasks
+* stale data sources
+* manager approvals pending
+
+The board should answer whether a live request is safe to confirm, needs manager approval,
+is missing information, or cannot be confirmed. Do not build this before the core Info
+Analysis, Verification, Safety Gate, and Task Planning model is stable.
 
 ## 14. Non-Goals
 

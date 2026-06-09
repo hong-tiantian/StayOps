@@ -114,17 +114,20 @@ export class ToolRunner {
     );
   }
 
-  check_inventory(item_type: string) {
+  check_inventory(item_type: string, context?: { space_id?: string }) {
     // For projector, derive from event_spaces.
     if (item_type === "projector") {
-      const space = loadEventSpaces()[0];
+      const spaces = loadEventSpaces();
+      const space = context?.space_id
+        ? spaces.find((s) => s.space_id === context.space_id)
+        : spaces[0];
       const output = {
         item_type,
         available_count: space?.projector ? 1 : 0,
         reserved_count: space?.status?.startsWith("booked") ? 1 : 0,
         location: space?.space_id ?? "unknown",
       };
-      return this.record("check_inventory", { item_type }, output);
+      return this.record("check_inventory", { item_type, ...context }, output);
     }
     const output = { item_type, available_count: 0, reserved_count: 0, location: "unknown" };
     return this.record("check_inventory", { item_type }, output);

@@ -18,10 +18,11 @@ These are intentionally unfinished. Fill them in, then delete this notice.
 - 🟢 **Partner bucket chosen: Arize.** The project direction is Arize/Phoenix:
   trace Gemini reasoning, tool calls, policy guardrails, and manager feedback so
   every promise decision is auditable. Fivetran is no longer the submission partner.
-- 🟡 **Google Cloud Agent Builder orchestration not done yet.** The current code has
-  a Gemini custom ReAct/function-calling loop plus deterministic policy fallback,
-  but it is not yet orchestrated through Google Cloud Agent Builder. This MUST be
-  addressed or clearly documented before submission.
+- 🟡 **Google Cloud Agent Builder / ADK cloud submission path not done yet.** The current
+  code has a local ADK service path (`agent/promise_agent/`) that becomes the primary
+  orchestration path when `ADK_AGENT_URL` is configured, plus a Gemini custom ReAct fallback
+  and deterministic policy fallback. Cloud Run deployment, final submission docs, and Arize
+  hardening are still pending.
 - 🟡 **Primary persona** is set to *duty manager / operations lead* (see below).
   Confirm with the teammate who has hotel experience.
 - 🟡 **LICENSE copyright line** says "StayOps Promise Ledger contributors". Replace with
@@ -61,11 +62,12 @@ This repo is an entry in the **Google Cloud Rapid Agent Hackathon** (submission 
 
 **Current (as committed):** Next.js 16 (App Router) + React 18 + TypeScript + Tailwind.
 Backend = Next.js API routes. Data = local CSV in `/data` loaded into memory by
-`src/lib/data.ts`. The current agent path is a **Gemini custom ReAct/function-calling
-loop** (`src/lib/agent/promiseAgent.ts`) that calls read-only evidence tools, then a
+`src/lib/data.ts`. The current primary orchestration path is the local **ADK / Agent
+Builder service** (`agent/promise_agent/`) when `ADK_AGENT_URL` is configured; otherwise
+the app falls back to the **Gemini custom ReAct/function-calling loop**
+(`src/lib/agent/promiseAgent.ts`), then to deterministic rules. In all paths, a
 **deterministic policy layer** (`src/lib/agent/policy.ts`, `classifier.ts`) decides the
-final executable status. If Gemini is unavailable, the app falls back to the same
-deterministic rules. Time is pinned to `DEMO_NOW = 2026-07-18T10:00:00Z`.
+final executable status. Time is pinned to `DEMO_NOW = 2026-07-18T10:00:00Z`.
 
 **Current partner direction:** Arize/Phoenix tracing and MCP self-review are present in
 code (`src/lib/tracing.ts`, `src/lib/mcp/phoenixClient.ts`, `src/app/api/insights`).
@@ -73,9 +75,9 @@ Describe this carefully: it supports observability/auditability; it does not yet
 the deterministic promise policy.
 
 **Target:** keep the deterministic engine as a *verifiable fallback*, keep Arize as the
-partner MCP track, and add/align Google Cloud Agent Builder orchestration. Describe code
-as it *currently is* to the user — do not claim Agent Builder orchestration or decision
-impact from MCP exists until it does.
+partner MCP track, and finish Cloud Run/Agent Builder deployment alignment. Describe code
+as it *currently is* to the user — local ADK path implemented, cloud deployment pending,
+and no decision impact from MCP until it exists.
 
 ---
 
