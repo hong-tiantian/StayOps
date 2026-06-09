@@ -4,7 +4,8 @@ import { allFreshness } from "./freshness";
 import { runPromiseAgent, AgentProposal } from "./agent/promiseAgent";
 import { rulePromiseStatus, alignPromiseCategory, reconcileStatus } from "./agent/policy";
 import { isFastTrack } from "./learning/feedbackStore";
-import { Department, PromiseDecision, PromiseStatus, PromiseType, ToolCall } from "./types";
+import { adkConfigured, runAdkAgent } from "./agent/adkClient";
+import { Department, PromiseDecision, PromiseStatus, PromiseType, Reservation, ToolCall } from "./types";
 
 /**
  * Promise audit orchestration.
@@ -38,7 +39,7 @@ function splitTypes(raw: string): PromiseType[] {
 
 export interface AuditResult {
   booking_id: string;
-  reasoning_source: "gemini" | "rules";
+  reasoning_source: "adk" | "gemini" | "rules";
   decisions: PromiseDecision[];
   tool_calls: ToolCall[];
   freshness_summary: Array<{
@@ -118,10 +119,20 @@ async function runAgentAudit(booking_id: string): Promise<AuditResult> {
   const messages = intake.search_messages(booking_id);
 
   const agent = await runPromiseAgent(messages, reservation);
+  return assembleFromProposals(booking_id, reservation, agent.proposals, "gemini", agent.runner.calls, intake.calls);
+}
 
-  // Index agent proposals by the stable ledger id they align to.
+/** Turn agent proposals (from ADK or the in-app Gemini loop) into policy-adjudicated decisions. */
+function assembleFromProposals(
+  booking_id: string,
+  reservation: Reservation | null,
+  proposals: AgentProposal[],
+  source: "gemini" | "adk",
+  agentToolCalls: ToolCall[],
+  intakeCalls: ToolCall[]
+): AuditResult {
   const proposalByCategory = new Map<string, AgentProposal>();
-  for (const p of agent.proposals) {
+  for (const p of proposals) {
     const cat = alignPromiseCategory(p.promise_text);
     if (cat && !proposalByCategory.has(cat)) proposalByCategory.set(cat, p);
   }
@@ -145,9 +156,22 @@ async function runAgentAudit(booking_id: string): Promise<AuditResult> {
     return buildDecision(row, verdict.status, evidence, policyRunner.calls, proposal);
   });
 
-  // Top-level log shows the agent's real function-calling exploration.
-  const tool_calls = [...intake.calls, ...agent.runner.calls];
-  return { booking_id, reasoning_source: "gemini", decisions, tool_calls, freshness_summary: freshnessSummary() };
+  return {
+    booking_id,
+    reasoning_source: source,
+    decisions,
+    tool_calls: [...intakeCalls, ...agentToolCalls],
+    freshness_summary: freshnessSummary(),
+  };
+}
+
+/** Agent Builder (ADK) path: orchestration runs in the ADK service; policy still decides. */
+async function runAdkAudit(booking_id: string): Promise<AuditResult> {
+  const intake = new ToolRunner();
+  const reservation = intake.get_reservation(booking_id);
+  intake.search_messages(booking_id);
+  const proposals = await runAdkAgent(booking_id);
+  return assembleFromProposals(booking_id, reservation, proposals, "adk", [], intake.calls);
 }
 
 /** Offline fallback: pure deterministic audit using the same policy verdicts. */
@@ -191,6 +215,17 @@ export async function runPromiseAudit(
     const cached = auditCache.get(booking_id);
     if (cached) return cached;
   }
+  // 1. Agent Builder (ADK) — primary orchestration when ADK_AGENT_URL is wired.
+  if (adkConfigured()) {
+    try {
+      const result = await runAdkAudit(booking_id);
+      auditCache.set(booking_id, result);
+      return result;
+    } catch (err) {
+      console.warn("[StayOps] ADK (Agent Builder) unavailable, falling back to in-app loop:", err);
+    }
+  }
+  // 2. In-app Gemini loop, then 3. deterministic policy — so the demo never breaks.
   try {
     const result = await runAgentAudit(booking_id);
     auditCache.set(booking_id, result); // cache only successful agent runs

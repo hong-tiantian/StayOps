@@ -57,7 +57,7 @@ export default function Page() {
 
   const [decisions, setDecisions] = useState<PromiseDecision[]>([]);
   const [auditCalls, setAuditCalls] = useState<ToolCall[]>([]);
-  const [reasoningSource, setReasoningSource] = useState<"gemini" | "rules" | null>(null);
+  const [reasoningSource, setReasoningSource] = useState<"adk" | "gemini" | "rules" | null>(null);
   const [tasks, setTasks] = useState<DecoratedTask[]>([]);
   const [approved, setApproved] = useState<Set<string>>(new Set());
 
