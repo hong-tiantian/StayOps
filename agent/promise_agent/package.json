@@ -1,0 +1,22 @@
+{
+  "name": "promise_agent",
+  "version": "1.0.0",
+  "description": "",
+  "main": "agent.ts",
+  "scripts": {
+    "web": "npx @google/adk-devtools web",
+    "cli": "npx @google/adk-devtools run agent.ts"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "typescript": "^6.0.3"
+  },
+  "dependencies": {
+    "@google/adk": "^1.2.0",
+    "@google/adk-devtools": "^1.2.0",
+    "dotenv": "^17.4.2",
+    "zod": "^4.4.3"
+  }
+}

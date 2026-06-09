@@ -15,12 +15,13 @@ hotel teams, and traces a complaint back to the exact broken promise.
 
 These are intentionally unfinished. Fill them in, then delete this notice.
 
-- 🔴 **Partner bucket not chosen yet.** Must integrate ≥1 partner MCP. Leading options:
-  **Fivetran** (real data sync → makes the freshness gate authentic) or
-  **Arize** (trace the agent's Gemini reasoning + tool calls). Pick ONE to submit.
-- 🔴 **Gemini integration not done yet.** The current code is a *deterministic rule
-  engine with no LLM* (see "Current state"). The contest **requires** Gemini + Google
-  Cloud Agent Builder. This MUST be added before submission.
+- 🟢 **Partner bucket chosen: Arize.** The project direction is Arize/Phoenix:
+  trace Gemini reasoning, tool calls, policy guardrails, and manager feedback so
+  every promise decision is auditable. Fivetran is no longer the submission partner.
+- 🟡 **Google Cloud Agent Builder orchestration not done yet.** The current code has
+  a Gemini custom ReAct/function-calling loop plus deterministic policy fallback,
+  but it is not yet orchestrated through Google Cloud Agent Builder. This MUST be
+  addressed or clearly documented before submission.
 - 🟡 **Primary persona** is set to *duty manager / operations lead* (see below).
   Confirm with the teammate who has hotel experience.
 - 🟡 **LICENSE copyright line** says "StayOps Promise Ledger contributors". Replace with
@@ -60,13 +61,21 @@ This repo is an entry in the **Google Cloud Rapid Agent Hackathon** (submission 
 
 **Current (as committed):** Next.js 16 (App Router) + React 18 + TypeScript + Tailwind.
 Backend = Next.js API routes. Data = local CSV in `/data` loaded into memory by
-`src/lib/data.ts`. The "agent" is a **deterministic rule engine** (`src/lib/classifier.ts`,
-`recovery.ts`, `freshness.ts`, `tools.ts`) — **no LLM is called yet**. Time is pinned to
-`DEMO_NOW = 2026-07-18T10:00:00Z`.
+`src/lib/data.ts`. The current agent path is a **Gemini custom ReAct/function-calling
+loop** (`src/lib/agent/promiseAgent.ts`) that calls read-only evidence tools, then a
+**deterministic policy layer** (`src/lib/agent/policy.ts`, `classifier.ts`) decides the
+final executable status. If Gemini is unavailable, the app falls back to the same
+deterministic rules. Time is pinned to `DEMO_NOW = 2026-07-18T10:00:00Z`.
 
-**Target:** keep the deterministic engine as a *verifiable fallback*, but add a real
-Gemini-driven agent (via Agent Builder) + the chosen partner MCP. Describe code as it
-*currently is* to the user — do not claim Gemini/partner integration exists until it does.
+**Current partner direction:** Arize/Phoenix tracing and MCP self-review are present in
+code (`src/lib/tracing.ts`, `src/lib/mcp/phoenixClient.ts`, `src/app/api/insights`).
+Describe this carefully: it supports observability/auditability; it does not yet replace
+the deterministic promise policy.
+
+**Target:** keep the deterministic engine as a *verifiable fallback*, keep Arize as the
+partner MCP track, and add/align Google Cloud Agent Builder orchestration. Describe code
+as it *currently is* to the user — do not claim Agent Builder orchestration or decision
+impact from MCP exists until it does.
 
 ---
 

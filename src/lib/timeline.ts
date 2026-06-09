@@ -4,7 +4,7 @@ import { TimelineEvent } from "./types";
 export const TIMELINE: TimelineEvent[] = [
   { at: "2026-07-10 15:22", category: "system", label: "Booking email received", detail: "MSG-001 from maya.chen@acmerobotics.com" },
   { at: "2026-07-10 15:40", category: "system", label: "Sales note created", detail: "MSG-002 — early arrival noted, quiet king to be prioritized" },
-  { at: "2026-07-18 09:45", category: "system", label: "Data freshness checked", detail: "Fivetran demo connector synced operational sources" },
+  { at: "2026-07-18 09:45", category: "system", label: "Data freshness checked", detail: "Operational sources checked by the local freshness gate" },
   { at: "2026-07-18 09:52", category: "promise", label: "Promise audit completed", detail: "6 promises classified" },
   { at: "2026-07-18 09:58", category: "approval", label: "Manager approved quiet king room priority", detail: "APR-001 → P-002" },
   { at: "2026-07-18 09:59", category: "approval", label: "Manager approved projector setup", detail: "APR-002 → P-004" },
