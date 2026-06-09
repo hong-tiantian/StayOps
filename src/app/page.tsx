@@ -14,6 +14,7 @@ import ComplaintRecovery from "@/components/ComplaintRecovery";
 import ToolCallLog from "@/components/ToolCallLog";
 import SpotlightCard from "@/components/SpotlightCard";
 import ManagerBriefing from "@/components/ManagerBriefing";
+import SelfReview from "@/components/SelfReview";
 import {
   FreshnessResult,
   Message,
@@ -193,6 +194,7 @@ export default function Page() {
               <ToolCallLog calls={auditCalls} dense />
             </SpotlightCard>
           </div>
+          <SelfReview lang={lang} refreshKey={approved.size} />
         </div>
       )}
 

@@ -1,0 +1,13 @@
+# Dependencies (both agent/ and agent/promise_agent/)
+node_modules/
+
+# Build output
+dist/
+*.tsbuildinfo
+
+# Local-only env overrides (the committed .env holds non-secret config only)
+.env*.local
+
+# Logs / OS
+npm-debug.log*
+.DS_Store
