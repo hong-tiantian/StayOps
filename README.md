@@ -76,7 +76,8 @@ A complaint later arrives — *"The VP was promised a quiet king room, but was p
 - **Tailwind CSS**
 - **Gemini 3.5 Flash on Vertex AI** via the `@google/genai` SDK, authenticated with **Application Default Credentials (ADC)** — no API key is stored (org policy requires ADC)
 - **Deterministic policy engine** (rule guardrails) — the safety layer and offline fallback
-- **Local CSV as a mock PMS** data layer, behind tool interfaces that an Opera/Cloudbeds/Mews adapter or a Fivetran → BigQuery pipeline can replace without touching agent logic
+- **Local CSV as a mock PMS** data layer, behind tool interfaces that an Opera/Cloudbeds/Mews adapter or a data warehouse pipeline can replace without touching agent logic
+- **Arize Phoenix observability** via OpenTelemetry/OpenInference spans plus Phoenix MCP self-review, so the demo can show how Gemini reasoning, tool calls, and policy guardrails are audited
 
 ## Setup
 
@@ -162,7 +163,7 @@ All synthetic data lives in `/data` as CSV (loaded by `src/lib/data.ts`), acting
 - Bilingual operational UI: ledger, task board, timeline, hotel map, complaint recovery
 
 **Planned (hackathon roadmap)**
-- **Fivetran MCP**: replace CSV freshness with a real partner MCP server (adapter sketched in [docs/mcp-integration.md](docs/mcp-integration.md)); CSV stays as offline fallback.
+- **Arize integration hardening**: connect each promise detail to the relevant Phoenix trace/eval evidence, not only the dashboard self-review panel.
 - **Google Cloud Agent Builder**: current orchestration is a custom ReAct loop in Next API routes; Agent Builder is the documented integration target.
 - More real front-desk scenarios (VIP upgrade, room move, maintenance, lost & found, long-stay pricing) with approval tiers.
 - A visible self-learning loop: manager approve/edit/reject → learned preferences/skills.
@@ -174,7 +175,8 @@ All synthetic data lives in `/data` as CSV (loaded by `src/lib/data.ts`), acting
 - Gemini 3.x **Pro** is not enabled on the free-tier project; the agent uses **Gemini 3.5 Flash** (a Gemini 3 thinking model). Swap via `GEMINI_MODEL` when Pro access is granted.
 - Free-tier Gemini quota is low; the agent uses exponential backoff and caches successful audits.
 - Data freshness uses a fixed `DEMO_NOW`; the freshness gate logic is real, but all demo sources are currently fresh.
-- MCP freshness and Agent Builder orchestration are planned, not yet integrated (see Roadmap).
+- Arize/Phoenix tracing and MCP self-review are present, but MCP evidence is not yet shown per promise and does not yet change policy decisions.
+- Agent Builder orchestration is planned, not yet integrated (see Roadmap).
 
 ## Project Docs
 
