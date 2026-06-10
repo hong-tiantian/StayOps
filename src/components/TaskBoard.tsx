@@ -13,9 +13,9 @@ const COLUMN_ACCENT: Record<TaskColumn, string> = {
   "Waiting for Approval": "147,51,234",
   Approved: "168,85,247",
   Created: "96,165,250",
-  "In Progress": "251,191,36",
+  "In Progress": "229,190,120",
   Blocked: "248,113,113",
-  Completed: "52,211,153",
+  Completed: "126,200,169",
   Failed: "239,68,68",
 };
 

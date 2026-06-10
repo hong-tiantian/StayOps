@@ -24,10 +24,10 @@ const STAGES: StageDef[] = [
 ];
 
 const STATUS_RGB: Record<CellStatus, string> = {
-  complete: "52,211,153",
-  active: "251,191,36",
-  alert: "251,113,133",
-  override: "167,139,250",
+  complete: "126,200,169",
+  active: "229,190,120",
+  alert: "229,138,148",
+  override: "178,160,218",
   pending: "148,163,184",
 };
 
@@ -79,7 +79,7 @@ function Node({
 }
 
 function Connector({ done, alert }: { done: boolean; alert: boolean }) {
-  const rgb = alert ? "251,113,133" : done ? "52,211,153" : "148,163,184";
+  const rgb = alert ? "229,138,148" : done ? "126,200,169" : "148,163,184";
   return (
     <div className="relative flex w-7 shrink-0 items-center justify-center self-center">
       <svg width="28" height="16" viewBox="0 0 28 16" className="overflow-visible">
@@ -173,10 +173,10 @@ export default function AgentFlowGraph({
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-3.5">
           {([
-            ["52,211,153", zh ? "完成" : "done"],
-            ["251,191,36", zh ? "进行" : "active"],
-            ["251,113,133", zh ? "告警" : "alert"],
-            ["167,139,250", zh ? "改判" : "override"],
+            ["126,200,169", zh ? "完成" : "done"],
+            ["229,190,120", zh ? "进行" : "active"],
+            ["229,138,148", zh ? "告警" : "alert"],
+            ["178,160,218", zh ? "改判" : "override"],
           ] as const).map(([rgb, label]) => (
             <span key={label} className="t-caption inline-flex items-center gap-1.5">
               <span className="h-1.5 w-1.5 rounded-full" style={{ background: `rgb(${rgb})` }} />
@@ -240,7 +240,7 @@ export default function AgentFlowGraph({
                         animate={{ width: `${pct}%` }}
                         transition={{ duration: 0.7, ease: EASE }}
                         className="h-full rounded-full"
-                        style={{ background: alerts ? "rgb(251,113,133)" : "rgb(52,211,153)" }}
+                        style={{ background: alerts ? "rgb(229,138,148)" : "rgb(126,200,169)" }}
                       />
                     </div>
                   </div>

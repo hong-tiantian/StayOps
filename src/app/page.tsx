@@ -88,10 +88,11 @@ export default function Page() {
       setFreshness(j.freshness_summary);
       setAllFresh((j.freshness_summary ?? []).every((s: FreshnessResult) => s.freshness_status === "fresh"));
       setReasoningSource(j.reasoning_source ?? null);
+      // Keep an existing selection if still valid; never auto-open the drawer.
       setSelected((prev) =>
         prev && (j.decisions ?? []).some((d: PromiseDecision) => d.promise_id === prev.promise_id)
           ? prev
-          : (j.decisions?.[0] ?? null)
+          : null
       );
       await refreshTasks();
       if (!silent) {
@@ -181,6 +182,22 @@ export default function Page() {
     }
     return map;
   }, [decisions]);
+
+  // Ambient weather — the page atmosphere IS the primary status indicator.
+  // calm = on track · warning = at-risk promises · critical = failures/conflicts or stale data gate
+  const weather = useMemo(() => {
+    if (!allFresh || decisions.some((d) => ["conflict", "failed"].includes(d.status))) return "critical";
+    const unresolvedRisk = decisions.some(
+      (d) =>
+        ["at_risk", "needs_approval", "missing_info", "cannot_confirm"].includes(d.status) &&
+        !(d.approval_required && approved.has(d.promise_id))
+    );
+    return unresolvedRisk ? "warning" : "calm";
+  }, [decisions, approved, allFresh]);
+
+  useEffect(() => {
+    document.documentElement.dataset.weather = weather;
+  }, [weather]);
 
   const ledgerHighlights = trace ? trace.matched_promises.map((m) => m.promise_id) : [];
   const taskHighlights = trace

@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import AgentFlowGraph from "@/components/AgentFlowGraph";
+import EvalMetricsCard from "@/components/EvalMetricsCard";
 import SelfReview from "@/components/SelfReview";
 import StatusBadge from "@/components/StatusBadge";
 import WidgetGrid, { GLayouts, WidgetItem } from "@/components/widgets/WidgetGrid";
@@ -125,7 +126,7 @@ export default function CommandWorkspace({
   const [editing, setEditing] = useState(false);
   const [resetNonce, setResetNonce] = useState(0);
   const [workflowOpen, setWorkflowOpen] = useState(false);
-  const [drillPanel, setDrillPanel] = useState<"atrisk" | "missing" | "blocked" | "all" | null>(null);
+  const [drillPanel, setDrillPanel] = useState<"atrisk" | "missing" | "blocked" | "approval" | "all" | null>(null);
 
   const total = decisions.length || 0;
   const safe = decisions.filter((d) => bucketOf(d.status) === "verifiable").length;
@@ -154,10 +155,10 @@ export default function CommandWorkspace({
   const donutData: DonutSlice[] = useMemo(() => {
     const counts: Record<Bucket, number> = { verifiable: safe, at_risk: risk, missing_info: missing, cannot_confirm: blocked };
     const meta: Record<Bucket, { label: string; rgb: string }> = {
-      verifiable: { label: zh ? "可验证" : "Verifiable", rgb: "52,211,153" },
-      at_risk: { label: zh ? "风险/审批" : "At risk", rgb: "251,191,36" },
-      missing_info: { label: zh ? "缺信息" : "Missing", rgb: "34,211,238" },
-      cannot_confirm: { label: zh ? "无法确认" : "Blocked", rgb: "251,113,133" },
+      verifiable: { label: zh ? "可验证" : "Verifiable", rgb: "126,200,169" },
+      at_risk: { label: zh ? "风险/审批" : "At risk", rgb: "229,190,120" },
+      missing_info: { label: zh ? "缺信息" : "Missing", rgb: "138,192,214" },
+      cannot_confirm: { label: zh ? "无法确认" : "Blocked", rgb: "229,138,148" },
     };
     return (Object.keys(counts) as Bucket[])
       .map((k) => ({ label: meta[k].label, value: counts[k], color: `rgb(${meta[k].rgb})` }))
@@ -177,19 +178,33 @@ export default function CommandWorkspace({
   const overruled = useMemo(() => decisions.filter((d) => d.policy_overruled), [decisions]);
   const stackCards = decisions.slice(0, 4);
 
-  /* ---------------- overview chips ---------------- */
-  const chips: Array<{ label: string; value: number; rgb: string; drill: "all" | "atrisk" | "missing" | "blocked" | null }> = [
-    { label: zh ? "承诺" : "Promises", value: total, rgb: "226,232,240", drill: "all" },
-    { label: zh ? "安全" : "Safe", value: safe, rgb: "52,211,153", drill: null },
-    { label: zh ? "风险" : "Risk", value: risk, rgb: "251,191,36", drill: "atrisk" },
-    { label: zh ? "缺信息" : "Missing", value: missing, rgb: "34,211,238", drill: "missing" },
-    { label: zh ? "无法确认" : "Blocked", value: blocked, rgb: "251,113,133", drill: "blocked" },
-    { label: zh ? "改判" : "Override", value: overrides, rgb: "167,139,250", drill: null },
-  ];
+  /* ---------------- hero stats ---------------- */
+  const pendingApproval = decisions.filter((d) => d.approval_required && !approved.has(d.promise_id)).length;
+
+  /* Single sweeping arc (300° with gap) showing status breakdown */
+  const ARC_R = 40;
+  const ARC_C = 2 * Math.PI * ARC_R;
+  const ARC_SWEEP = 300 / 360; // leave a 60° gap at the bottom
+  const arcSegments = useMemo(() => {
+    const buckets = [
+      { value: safe, color: "rgba(126,200,169,0.9)" },
+      { value: risk, color: "rgba(229,190,120,0.85)" },
+      { value: missing, color: "rgba(138,192,214,0.8)" },
+      { value: blocked, color: "rgba(229,138,148,0.85)" },
+    ].filter((b) => b.value > 0);
+    const sum = buckets.reduce((a, b) => a + b.value, 0) || 1;
+    let cursor = 0;
+    return buckets.map((b) => {
+      const frac = (b.value / sum) * ARC_SWEEP;
+      const seg = { ...b, start: cursor, frac };
+      cursor += frac;
+      return seg;
+    });
+  }, [safe, risk, missing, blocked, ARC_SWEEP]);
 
   /* ---------------- widget bodies ---------------- */
   const healthWidget = (
-    <WidgetCard title={zh ? "承诺健康度" : "Promise health"} accent="52,211,153" editing={editing} bodyClassName="p-3">
+    <WidgetCard title={zh ? "承诺健康度" : "Promise health"} accent="126,200,169" editing={editing} bodyClassName="p-3">
       <div className="grad-mint relative flex h-full flex-col justify-between overflow-hidden rounded-2xl p-5 text-slate-950">
         <div>
           <div className="flex items-end gap-2.5">
@@ -218,20 +233,21 @@ export default function CommandWorkspace({
     return (
       <WidgetCard
         title={isRisk ? (zh ? "高风险 / 待审批" : "At risk / approval") : zh ? "缺信息" : "Missing info"}
-        accent={isRisk ? "251,191,36" : "34,211,238"}
+        accent={isRisk ? "229,190,120" : "138,192,214"}
         editing={editing}
+        bodyClassName="p-4"
       >
-        <div className="flex h-full flex-col justify-between">
+        <div className="flex h-full flex-col">
           <div className="flex items-start justify-between">
             <CountUp value={count} className="t-metric block" />
             <TrendPill value={isRisk ? risk : -missing} suffix="" />
           </div>
-          <div className="t-caption mb-2">{isRisk ? (zh ? "需要经理判断" : "needs manager judgment") : zh ? "需客人/公司补充" : "guest / company follow-up"}</div>
+          <div className="t-caption mt-0.5">{isRisk ? (zh ? "需要经理判断" : "needs manager judgment") : zh ? "需客人/公司补充" : "guest / company follow-up"}</div>
           {count > 0 && (
             <button
               onClick={() => setDrillPanel(isRisk ? "atrisk" : "missing")}
               onMouseDown={(e) => editing && e.stopPropagation()}
-              className="h-7 w-full rounded-lg border border-white/12 bg-white/[0.05] text-[11px] font-medium text-white/70 transition hover:bg-white/[0.1] hover:text-white"
+              className="mt-auto h-7 w-full shrink-0 rounded-lg border border-white/12 bg-white/[0.05] text-[11px] font-medium text-white/70 transition hover:bg-white/[0.1] hover:text-white"
             >
               {zh ? `查看全部 ${count} 条 →` : `View all ${count} →`}
             </button>
@@ -242,11 +258,11 @@ export default function CommandWorkspace({
   };
 
   const splitWidget = (
-    <WidgetCard title={zh ? "承诺状态分布" : "Promise split"} accent="52,211,153" editing={editing}>
+    <WidgetCard title={zh ? "承诺状态分布" : "Promise split"} accent="126,200,169" editing={editing}>
       <div className="flex h-full items-center gap-4">
         <Donut
           data={donutData.length ? donutData : [{ label: "—", value: 1, color: "rgba(255,255,255,0.12)" }]}
-          thickness={16}
+          thickness={10}
           centerTop={<div className="t-caption">{zh ? "总数" : "Total"}</div>}
           centerBottom={<CountUp value={total} className="t-metric" />}
         />
@@ -256,7 +272,7 @@ export default function CommandWorkspace({
           ))}
           {overrides > 0 && (
             <div className="mt-2 flex items-center gap-2 rounded-lg border border-white/8 bg-white/[0.03] px-2.5 py-1.5 text-[11px] text-white/70">
-              <span className="h-1.5 w-1.5 rounded-full" style={{ background: "rgb(167,139,250)" }} />
+              <span className="h-1.5 w-1.5 rounded-full" style={{ background: "rgb(178,160,218)" }} />
               {overrides} {zh ? "安全门改判" : "gate override(s)"}
             </div>
           )}
@@ -266,7 +282,7 @@ export default function CommandWorkspace({
   );
 
   const workloadWidget = (
-    <WidgetCard title={zh ? "部门承诺分布" : "Department workload"} accent="34,211,238" editing={editing}>
+    <WidgetCard title={zh ? "部门承诺分布" : "Department workload"} accent="138,192,214" editing={editing}>
       {deptBars.length ? <Bars data={deptBars} highlightIndex={0} height={150} /> : <div className="grid h-full place-items-center text-xs text-white/40">{zh ? "暂无数据" : "No data"}</div>}
     </WidgetCard>
   );
@@ -275,7 +291,7 @@ export default function CommandWorkspace({
     <WidgetCard
       title={zh ? "Agent 工作流" : "Agent workflow"}
       icon="✦"
-      accent="167,139,250"
+      accent="178,160,218"
       editing={editing}
       onExpand={() => setWorkflowOpen(true)}
       expandLabel={zh ? "展开详情" : "Open"}
@@ -301,7 +317,7 @@ export default function CommandWorkspace({
               <span className="tnum w-12 shrink-0 font-mono text-[10px] text-white/38">{d.promise_id}</span>
               <span className="line-clamp-1 flex-1 text-[12.5px] text-white/70">{d.promise_text}</span>
               <span className="h-1 w-14 shrink-0 overflow-hidden rounded-full bg-white/10">
-                <span className="block h-full rounded-full" style={{ width: `${pct}%`, background: alerts ? "rgb(251,113,133)" : "rgb(52,211,153)" }} />
+                <span className="block h-full rounded-full" style={{ width: `${pct}%`, background: alerts ? "rgb(229,138,148)" : "rgb(126,200,169)" }} />
               </span>
               {alerts > 0 && <span className="shrink-0 text-[11px] text-rose-300">⚠{alerts}</span>}
             </button>
@@ -314,7 +330,7 @@ export default function CommandWorkspace({
   const cardsWidget = (
     <WidgetCard
       title={zh ? "承诺卡组" : "Promise cards"}
-      accent="167,139,250"
+      accent="178,160,218"
       editing={editing}
       headerRight={<span className="text-[10px] text-white/40">{total}</span>}
     >
@@ -360,7 +376,7 @@ export default function CommandWorkspace({
   const tasksWidget = (
     <WidgetCard
       title={zh ? "任务与交接" : "Tasks & handoffs"}
-      accent="163,230,53"
+      accent="126,200,169"
       editing={editing}
       headerRight={<span className="text-[10px] text-white/40">{taskPlan.filter((p) => p.action_type !== "none").length}</span>}
     >
@@ -403,7 +419,7 @@ export default function CommandWorkspace({
   const freshnessWidget = (
     <WidgetCard
       title={zh ? "数据新鲜度闸门" : "Data freshness gate"}
-      accent={staleSources.length ? "251,113,133" : "52,211,153"}
+      accent={staleSources.length ? "229,138,148" : "126,200,169"}
       editing={editing}
       headerRight={
         <span className={cx("rounded-full px-2 py-0.5 text-[9px] font-semibold", staleSources.length ? "bg-rose-400/15 text-rose-200" : "bg-emerald-400/15 text-emerald-200")}>
@@ -439,7 +455,7 @@ export default function CommandWorkspace({
     <WidgetCard
       title={zh ? "Agent 工作流（完整）" : "Agent workflow (full)"}
       icon="✦"
-      accent="167,139,250"
+      accent="178,160,218"
       editing={editing}
       onExpand={() => setWorkflowOpen(true)}
       expandLabel={zh ? "全屏" : "Fullscreen"}
@@ -461,7 +477,7 @@ export default function CommandWorkspace({
   const pipelineWidget = (
     <WidgetCard
       title={zh ? "Agent 团队管线" : "Agent team pipeline"}
-      accent="34,211,238"
+      accent="138,192,214"
       editing={editing}
       headerRight={<span className="text-[10px] text-white/40">{agentTrace.filter((s) => s.status === "complete" || s.status === "fallback").length}/{agentTrace.length || 6}</span>}
     >
@@ -484,7 +500,7 @@ export default function CommandWorkspace({
   );
 
   const overridesWidget = (
-    <WidgetCard title={zh ? "安全门改判清单" : "Safety-gate overrides"} accent="167,139,250" editing={editing} headerRight={<span className="text-[10px] text-white/40">{overruled.length}</span>}>
+    <WidgetCard title={zh ? "安全门改判清单" : "Safety-gate overrides"} accent="178,160,218" editing={editing} headerRight={<span className="text-[10px] text-white/40">{overruled.length}</span>}>
       <div className="space-y-1.5">
         {overruled.map((d) => (
           <button
@@ -506,7 +522,7 @@ export default function CommandWorkspace({
   );
 
   const toolsWidget = (
-    <WidgetCard title={zh ? "工具调用轨迹" : "Tool-call trail"} accent="96,165,250" editing={editing} headerRight={<span className="text-[10px] text-white/40">{auditCalls.length}</span>}>
+    <WidgetCard title={zh ? "工具调用轨迹" : "Tool-call trail"} accent="138,192,214" editing={editing} headerRight={<span className="text-[10px] text-white/40">{auditCalls.length}</span>}>
       <div className="space-y-0.5">
         {recent.length === 0 && <div className="grid h-20 place-items-center text-xs text-white/38">{zh ? "运行审查后显示" : "Run an audit"}</div>}
         {recent.map((c, i) => (
@@ -523,17 +539,29 @@ export default function CommandWorkspace({
   );
 
   const selfReviewWidget = (
-    <WidgetCard title={zh ? "Agent 自检与学习 (Arize)" : "Self-review & learning (Arize)"} accent="167,139,250" editing={editing}>
+    <WidgetCard title={zh ? "Agent 自检与学习 (Arize)" : "Self-review & learning (Arize)"} accent="178,160,218" editing={editing}>
       <SelfReview lang={lang} refreshKey={approved.size + auditCalls.length} bare />
     </WidgetCard>
   );
 
+  const evalWidget = (
+    <WidgetCard
+      title={zh ? "评测指标 (Golden Case)" : "Eval metrics (golden case)"}
+      icon="✓"
+      accent="126,200,169"
+      editing={editing}
+      bodyClassName="p-4"
+    >
+      <EvalMetricsCard bookingId={reservation?.booking_id ?? "BKG-2026-0718-ACME"} lang={lang} />
+    </WidgetCard>
+  );
+
   const infoWidget = infoAnalysis ? (
-    <WidgetCard title={zh ? "信息分析" : "Info analysis"} accent="34,211,238" editing={editing}>
+    <WidgetCard title={zh ? "信息分析" : "Info analysis"} accent="138,192,214" editing={editing}>
       <div className="space-y-1">
-        <LegendRow color="rgb(34,211,238)" label={zh ? "范围" : "Scope"} value={infoAnalysis.intake_scope} />
-        <LegendRow color="rgb(167,139,250)" label={zh ? "基础信息" : "Basic info"} value={infoAnalysis.basic_info_status} />
-        <LegendRow color="rgb(52,211,153)" label={zh ? "额外项目" : "Extra items"} value={infoAnalysis.extra_items.length} />
+        <LegendRow color="rgb(138,192,214)" label={zh ? "范围" : "Scope"} value={infoAnalysis.intake_scope} />
+        <LegendRow color="rgb(178,160,218)" label={zh ? "基础信息" : "Basic info"} value={infoAnalysis.basic_info_status} />
+        <LegendRow color="rgb(126,200,169)" label={zh ? "额外项目" : "Extra items"} value={infoAnalysis.extra_items.length} />
       </div>
     </WidgetCard>
   ) : null;
@@ -553,21 +581,21 @@ export default function CommandWorkspace({
 
   const managerLayouts: GLayouts = {
     lg: [
-      mn({ i: "health", x: 0, y: 0, w: 5, h: 9 }),
-      mn({ i: "atrisk", x: 5, y: 0, w: 3, h: 4 }),
-      mn({ i: "missing", x: 5, y: 4, w: 3, h: 5 }),
-      mn({ i: "split", x: 8, y: 0, w: 4, h: 9 }),
-      mn({ i: "workload", x: 0, y: 9, w: 5, h: 8 }),
-      mn({ i: "workflow", x: 5, y: 9, w: 7, h: 8 }),
+      mn({ i: "health", x: 0, y: 0, w: 5, h: 10 }),
+      mn({ i: "atrisk", x: 5, y: 0, w: 3, h: 5 }),
+      mn({ i: "missing", x: 5, y: 5, w: 3, h: 5 }),
+      mn({ i: "split", x: 8, y: 0, w: 4, h: 10 }),
+      mn({ i: "workload", x: 0, y: 10, w: 5, h: 8 }),
+      mn({ i: "workflow", x: 5, y: 10, w: 7, h: 8 }),
       mn({ i: "cards", x: 0, y: 17, w: 4, h: 9 }),
       mn({ i: "tasks", x: 4, y: 17, w: 5, h: 9 }),
       mn({ i: "freshness", x: 9, y: 17, w: 3, h: 9 }),
     ],
     sm: [
       mn({ i: "health", x: 0, y: 0, w: 1, h: 8 }),
-      mn({ i: "atrisk", x: 0, y: 8, w: 1, h: 4 }),
-      mn({ i: "missing", x: 0, y: 12, w: 1, h: 4 }),
-      mn({ i: "split", x: 0, y: 16, w: 1, h: 9 }),
+      mn({ i: "atrisk", x: 0, y: 8, w: 1, h: 5 }),
+      mn({ i: "missing", x: 0, y: 13, w: 1, h: 5 }),
+      mn({ i: "split", x: 0, y: 18, w: 1, h: 9 }),
       mn({ i: "workload", x: 0, y: 25, w: 1, h: 8 }),
       mn({ i: "workflow", x: 0, y: 33, w: 1, h: 10 }),
       mn({ i: "cards", x: 0, y: 43, w: 1, h: 9 }),
@@ -578,6 +606,7 @@ export default function CommandWorkspace({
 
   const judgeItems: WidgetItem[] = [
     { id: "workflow_full", node: workflowFullWidget },
+    { id: "eval", node: evalWidget },
     { id: "pipeline", node: pipelineWidget },
     { id: "overrides", node: overridesWidget },
     { id: "tools", node: toolsWidget },
@@ -588,19 +617,21 @@ export default function CommandWorkspace({
   const judgeLayouts: GLayouts = {
     lg: [
       mn({ i: "workflow_full", x: 0, y: 0, w: 12, h: 14 }),
-      mn({ i: "pipeline", x: 0, y: 14, w: 6, h: 8 }),
-      mn({ i: "overrides", x: 6, y: 14, w: 6, h: 8 }),
-      mn({ i: "tools", x: 0, y: 22, w: 4, h: 10 }),
-      mn({ i: "selfreview", x: 4, y: 22, w: 5, h: 10 }),
-      mn({ i: "info", x: 9, y: 22, w: 3, h: 10 }),
+      mn({ i: "eval", x: 0, y: 14, w: 4, h: 13 }),
+      mn({ i: "pipeline", x: 4, y: 14, w: 8, h: 8 }),
+      mn({ i: "overrides", x: 4, y: 22, w: 8, h: 5 }),
+      mn({ i: "tools", x: 0, y: 27, w: 4, h: 10 }),
+      mn({ i: "selfreview", x: 4, y: 27, w: 5, h: 10 }),
+      mn({ i: "info", x: 9, y: 27, w: 3, h: 10 }),
     ],
     sm: [
       mn({ i: "workflow_full", x: 0, y: 0, w: 1, h: 14 }),
-      mn({ i: "pipeline", x: 0, y: 14, w: 1, h: 9 }),
-      mn({ i: "overrides", x: 0, y: 23, w: 1, h: 8 }),
-      mn({ i: "tools", x: 0, y: 31, w: 1, h: 10 }),
-      mn({ i: "selfreview", x: 0, y: 41, w: 1, h: 12 }),
-      mn({ i: "info", x: 0, y: 53, w: 1, h: 8 }),
+      mn({ i: "eval", x: 0, y: 14, w: 1, h: 13 }),
+      mn({ i: "pipeline", x: 0, y: 27, w: 1, h: 9 }),
+      mn({ i: "overrides", x: 0, y: 36, w: 1, h: 8 }),
+      mn({ i: "tools", x: 0, y: 44, w: 1, h: 10 }),
+      mn({ i: "selfreview", x: 0, y: 54, w: 1, h: 12 }),
+      mn({ i: "info", x: 0, y: 66, w: 1, h: 8 }),
     ],
   };
 
@@ -608,10 +639,10 @@ export default function CommandWorkspace({
 
   /* ---------------- drill panel render ---------------- */
   const DRILL_ACCENT: Record<string, string> = {
-    verifiable: "52,211,153", completed: "52,211,153", resolved: "52,211,153", task_created: "52,211,153",
-    at_risk: "251,191,36", needs_approval: "251,191,36", approved: "167,139,250",
-    missing_info: "34,211,238",
-    cannot_confirm: "251,113,133", conflict: "251,113,133", failed: "251,113,133",
+    verifiable: "126,200,169", completed: "126,200,169", resolved: "126,200,169", task_created: "126,200,169",
+    at_risk: "229,190,120", needs_approval: "229,190,120", approved: "178,160,218",
+    missing_info: "138,192,214",
+    cannot_confirm: "229,138,148", conflict: "229,138,148", failed: "229,138,148",
   };
 
   const drillDecisions = drillPanel === "atrisk"
@@ -620,12 +651,15 @@ export default function CommandWorkspace({
     ? decisions.filter((d) => d.status === "missing_info")
     : drillPanel === "blocked"
     ? decisions.filter((d) => ["cannot_confirm", "conflict", "failed"].includes(d.status))
+    : drillPanel === "approval"
+    ? decisions.filter((d) => d.approval_required && !approved.has(d.promise_id))
     : decisions;
 
   const drillTitle =
     drillPanel === "atrisk" ? (zh ? `高风险 / 待审批 · ${drillDecisions.length}` : `At risk / Approval · ${drillDecisions.length}`)
     : drillPanel === "missing" ? (zh ? `缺信息 · ${drillDecisions.length}` : `Missing info · ${drillDecisions.length}`)
     : drillPanel === "blocked" ? (zh ? `无法确认 · ${drillDecisions.length}` : `Blocked · ${drillDecisions.length}`)
+    : drillPanel === "approval" ? (zh ? `待审批队列 · ${drillDecisions.length}` : `Approval queue · ${drillDecisions.length}`)
     : zh ? `全部承诺 · ${drillDecisions.length}` : `All promises · ${drillDecisions.length}`;
 
   const drillPanelNode = drillPanel && (
@@ -646,25 +680,24 @@ export default function CommandWorkspace({
           ← {zh ? "返回" : "Back"}
         </button>
         <h2 className="t-title">{drillTitle}</h2>
-        {drillPanel === "all" && (
-          <div className="ml-auto flex gap-1">
-            {(["all", "atrisk", "missing", "blocked"] as const).map((key) => (
-              <button
-                key={key}
-                onClick={() => setDrillPanel(key)}
-                className={cx(
-                  "h-7 rounded-lg px-3 text-[11px] font-medium transition",
-                  drillPanel === key ? "bg-white/15 text-white" : "text-white/45 hover:text-white"
-                )}
-              >
-                {key === "all" ? (zh ? "全部" : "All")
-                  : key === "atrisk" ? (zh ? "风险" : "Risk")
-                  : key === "missing" ? (zh ? "缺信息" : "Missing")
-                  : zh ? "阻塞" : "Blocked"}
-              </button>
-            ))}
-          </div>
-        )}
+        <div className="ml-auto flex gap-1">
+          {(["all", "atrisk", "approval", "missing", "blocked"] as const).map((key) => (
+            <button
+              key={key}
+              onClick={() => setDrillPanel(key)}
+              className={cx(
+                "h-7 rounded-lg px-3 text-[11px] font-medium transition",
+                drillPanel === key ? "bg-white/15 text-white" : "text-white/45 hover:text-white"
+              )}
+            >
+              {key === "all" ? (zh ? "全部" : "All")
+                : key === "atrisk" ? (zh ? "风险" : "Risk")
+                : key === "approval" ? (zh ? "待审批" : "Approval")
+                : key === "missing" ? (zh ? "缺信息" : "Missing")
+                : zh ? "阻塞" : "Blocked"}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Promise cards */}
@@ -729,12 +762,22 @@ export default function CommandWorkspace({
                   {/* Right: action buttons */}
                   <div className="flex shrink-0 flex-col items-end gap-2">
                     {needsApprove && (
-                      <button
-                        onClick={() => onApprove(d.promise_id)}
-                        className="h-9 rounded-xl bg-amber-400/90 px-5 text-[12px] font-semibold text-slate-950 transition hover:bg-amber-400 active:scale-95"
-                      >
-                        {zh ? "批准" : "Approve"}
-                      </button>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => onApprove(d.promise_id)}
+                          className="h-9 rounded-xl bg-white/90 px-5 text-[12px] font-semibold text-slate-950 transition hover:bg-white active:scale-95"
+                        >
+                          {zh ? "批准" : "Approve"}
+                        </button>
+                        {drillPanel === "approval" && (
+                          <button
+                            onClick={() => onSelect(d)}
+                            className="h-9 rounded-xl border border-rose-300/30 bg-rose-400/12 px-4 text-[12px] font-semibold text-rose-100 transition hover:bg-rose-400/18 active:scale-95"
+                          >
+                            {zh ? "改判" : "Override"}
+                          </button>
+                        )}
+                      </div>
                     )}
                     {approved.has(d.promise_id) && (
                       <span className="rounded-full border border-violet-300/30 bg-violet-400/12 px-3 py-1.5 text-[11px] font-semibold text-violet-100">
@@ -811,46 +854,71 @@ export default function CommandWorkspace({
         </div>
       </div>
 
-      {/* ---------------- Overview banner — one quiet line ---------------- */}
-      <div className="glass-lite flex min-h-[52px] flex-wrap items-center justify-between gap-x-6 gap-y-2 px-5 py-3">
-        <p className="t-body !text-white/80">
-          {zh
-            ? <>本次审查 <b className="tnum font-semibold text-white">{total}</b> 个承诺{flowAlerts ? <>，<b className="tnum font-semibold text-rose-300">{flowAlerts}</b> 处工作流告警</> : null}</>
-            : <>This audit covers <b className="tnum font-semibold text-white">{total}</b> promises{flowAlerts ? <>, <b className="tnum font-semibold text-rose-300">{flowAlerts}</b> workflow alerts</> : null}</>}
-        </p>
-        <div className="flex flex-wrap items-baseline gap-x-5 gap-y-1.5">
-          {chips.map((c, i) => {
-            const inner = (
-              <>
-                {i > 0 && <span className="-ml-2.5 mr-2.5 hidden h-3.5 w-px bg-white/10 sm:block" />}
-                <span className="h-1.5 w-1.5 rounded-full" style={{ background: `rgb(${c.rgb})` }} />
-                <span className="t-label">{c.label}</span>
-                <span className="tnum text-[15px] font-semibold leading-none text-white">{c.value}</span>
-                {c.drill && c.value > 0 && <span className="text-[10px] text-white/30">↗</span>}
-              </>
-            );
-            return c.drill && c.value > 0 ? (
-              <button
-                key={c.label}
-                onClick={() => setDrillPanel(c.drill!)}
-                className="flex items-center gap-2 rounded-lg px-1.5 py-1 transition hover:bg-white/[0.07]"
-              >
-                {inner}
-              </button>
-            ) : (
-              <div key={c.label} className="flex items-center gap-2 px-1.5 py-1">
-                {inner}
-              </div>
-            );
-          })}
+      {/* ---------------- Hero row — three clickable stat cards ---------------- */}
+      {!drillPanel && (
+        <div className="grid gap-4 sm:grid-cols-3">
+          {/* 1 · Promises — count + sweeping status arc */}
+          <button
+            onClick={() => setDrillPanel("all")}
+            className="glass card-safe lift flex items-center justify-between gap-4 rounded-[20px] p-6 text-left"
+          >
+            <div>
+              <CountUp value={total} className="t-hero block" />
+              <div className="t-label mt-2">{zh ? "承诺" : "Promises"}</div>
+              {flowAlerts > 0 && (
+                <div className="t-caption mt-1">{flowAlerts} {zh ? "处工作流告警" : "workflow alerts"}</div>
+              )}
+            </div>
+            <svg viewBox="0 0 100 100" className="h-[88px] w-[88px] shrink-0 -rotate-90" aria-hidden>
+              <circle cx="50" cy="50" r={ARC_R} fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="4.5"
+                strokeDasharray={`${ARC_C * ARC_SWEEP} ${ARC_C}`} strokeLinecap="round"
+                transform="rotate(-60 50 50)" />
+              {arcSegments.map((s, i) => (
+                <circle key={i} cx="50" cy="50" r={ARC_R} fill="none" stroke={s.color} strokeWidth="4.5"
+                  strokeDasharray={`${Math.max(ARC_C * s.frac - 3, 1)} ${ARC_C}`} strokeLinecap="round"
+                  transform={`rotate(${-60 + s.start * 360} 50 50)`}
+                  style={{ transition: "stroke-dasharray 0.6s cubic-bezier(0.22,1,0.36,1)" }} />
+              ))}
+            </svg>
+          </button>
+
+          {/* 2 · At Risk — warm light bleed when > 0 */}
+          <button
+            onClick={() => risk > 0 && setDrillPanel("atrisk")}
+            className={cx("glass lift flex flex-col justify-between rounded-[20px] p-6 text-left", risk > 0 ? "card-atrisk" : "card-safe")}
+          >
+            <div className="flex items-center justify-between">
+              <span className="t-label">{zh ? "高风险" : "At Risk"}</span>
+              <span className="h-[6px] w-[6px] rounded-full" style={{ background: risk > 0 ? "rgb(229 190 120)" : "rgba(255,255,255,0.25)", boxShadow: risk > 0 ? "0 0 10px rgb(229 190 120)" : "none" }} />
+            </div>
+            <div>
+              <CountUp value={risk} className="t-hero block" />
+              <div className="t-caption mt-2">{risk > 0 ? (zh ? "点击逐条处理 →" : "click to act →") : zh ? "无风险承诺" : "nothing at risk"}</div>
+            </div>
+          </button>
+
+          {/* 3 · Pending Approval */}
+          <button
+            onClick={() => pendingApproval > 0 && setDrillPanel("approval")}
+            className={cx("glass lift flex flex-col justify-between rounded-[20px] p-6 text-left", pendingApproval > 0 ? "card-atrisk" : "card-safe")}
+          >
+            <div className="flex items-center justify-between">
+              <span className="t-label">{zh ? "待审批" : "Pending Approval"}</span>
+              <span className="h-[6px] w-[6px] rounded-full" style={{ background: pendingApproval > 0 ? "rgb(229 190 120)" : "rgba(255,255,255,0.25)", boxShadow: pendingApproval > 0 ? "0 0 10px rgb(229 190 120)" : "none" }} />
+            </div>
+            <div>
+              <CountUp value={pendingApproval} className="t-hero block" />
+              <div className="t-caption mt-2">{pendingApproval > 0 ? (zh ? "点击批准 / 改判 →" : "click to approve / override →") : zh ? "审批队列为空" : "approval queue clear"}</div>
+            </div>
+          </button>
         </div>
-      </div>
+      )}
 
       {/* ---------------- Drill panel or Widget grid ---------------- */}
       {drillPanel ? drillPanelNode : isManager ? (
-        <WidgetGrid key="manager" storageKey="stayops:layout:manager" editing={editing} resetNonce={resetNonce} defaultLayouts={managerLayouts} items={managerItems} />
+        <WidgetGrid key="manager" storageKey="stayops:layout:manager:v2" editing={editing} resetNonce={resetNonce} defaultLayouts={managerLayouts} items={managerItems} />
       ) : (
-        <WidgetGrid key="judge" storageKey="stayops:layout:judge" editing={editing} resetNonce={resetNonce} defaultLayouts={judgeLayouts} items={judgeItems} />
+        <WidgetGrid key="judge" storageKey="stayops:layout:judge:v2" editing={editing} resetNonce={resetNonce} defaultLayouts={judgeLayouts} items={judgeItems} />
       )}
 
       {/* ---------------- Workflow modal ---------------- */}

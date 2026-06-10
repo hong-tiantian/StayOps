@@ -7,10 +7,10 @@ import { Lang, ui } from "@/lib/i18n";
 
 const CAT: Record<string, { rgb: string }> = {
   promise: { rgb: "129,140,248" },
-  approval: { rgb: "167,139,250" },
+  approval: { rgb: "178,160,218" },
   task: { rgb: "56,189,248" },
-  complaint: { rgb: "251,113,133" },
-  recovery: { rgb: "52,211,153" },
+  complaint: { rgb: "229,138,148" },
+  recovery: { rgb: "126,200,169" },
   system: { rgb: "148,163,184" },
 };
 

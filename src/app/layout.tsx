@@ -21,6 +21,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className={inter.variable}>
       <body>
+        <div className="sky-calm" aria-hidden />
         <CursorGlow />
         <div className="relative z-[1]">{children}</div>
       </body>

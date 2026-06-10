@@ -41,7 +41,12 @@ export default function ComplaintRecovery({
       <div className="grid gap-4 lg:grid-cols-2">
         <div className="space-y-4">
           <div className="glass p-5">
-            <h3 className="t-label mb-3">{t.recovery.complaint}</h3>
+            <h3 className="t-label mb-1.5">{t.recovery.complaint}</h3>
+            <p className="t-caption mb-2.5">
+              {lang === "zh"
+                ? "本 demo 针对 Acme Robotics 预订的投诉场景 — 追溯仅匹配该预订的承诺台账"
+                : "This demo traces complaints for the Acme Robotics booking — matching runs against that booking's promise ledger only"}
+            </p>
             <textarea
               value={text}
               onChange={(e) => setText(e.target.value)}

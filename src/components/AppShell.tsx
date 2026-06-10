@@ -71,14 +71,19 @@ export default function AppShell({
                 <button
                   key={item.key}
                   onClick={() => onTab(item.key)}
-                  className={`flex h-9 w-full items-center justify-between rounded-lg px-3 text-left text-[12.5px] font-medium transition ${
+                  className={`flex h-9 w-full items-center justify-between rounded-full px-3.5 text-left text-[12.5px] font-medium transition ${
                     active
                       ? "bg-white/[0.12] text-white"
                       : "text-white/55 hover:bg-white/[0.06] hover:text-white"
                   }`}
                 >
                   <span>{item.label}</span>
-                  {active && <span className="h-1.5 w-1.5 rounded-full bg-emerald-300" />}
+                  {active && (
+                    <span
+                      className="h-1.5 w-1.5 rounded-full"
+                      style={{ background: "rgb(var(--ambient))", boxShadow: "0 0 8px rgb(var(--ambient))" }}
+                    />
+                  )}
                 </button>
               );
             })}
@@ -140,7 +145,7 @@ export default function AppShell({
               <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-white/45">⌕</span>
               <input
                 placeholder={t.nav.search}
-                className="h-8 w-full rounded-xl border border-white/12 bg-white/[0.05] pl-8 pr-3 text-xs text-white outline-none backdrop-blur-2xl transition placeholder:text-white/38 focus:border-white/25"
+                className="h-8 w-full rounded-full bg-white/[0.08] pl-8 pr-3 text-xs text-white outline-none backdrop-blur-2xl transition placeholder:text-white/38 focus:bg-white/[0.12]"
               />
             </div>
 

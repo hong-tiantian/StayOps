@@ -36,7 +36,14 @@ export default function WidgetCard({
           )}
         >
           <div className="flex min-w-0 items-center gap-2">
-            {accent && <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: `rgb(${accent})` }} />}
+            {/* One dot color per page — the ambient weather hue. Per-widget
+                accents read as noise, so `accent` only toggles visibility. */}
+            {accent && (
+              <span
+                className="h-1.5 w-1.5 shrink-0 rounded-full"
+                style={{ background: "rgb(var(--ambient) / 0.85)" }}
+              />
+            )}
             {icon && <span className="shrink-0 text-[12px] opacity-70">{icon}</span>}
             <span className="t-label truncate">{title}</span>
           </div>
