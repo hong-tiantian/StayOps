@@ -722,6 +722,34 @@ npm run dev -- --hostname 127.0.0.1
 npm run eval
 ```
 
+Gmail OAuth setup:
+
+1. Put only local secrets in `.env.local`:
+
+```env
+GMAIL_CLIENT_ID=...
+GMAIL_CLIENT_SECRET=...
+GMAIL_REDIRECT_URI=http://localhost:3000/api/auth/gmail/callback
+GMAIL_REFRESH_TOKEN=
+GMAIL_OAUTH_SHOW_TOKEN=true
+```
+
+2. Start the local app and open:
+
+```text
+http://localhost:3000/api/auth/gmail/start
+```
+
+3. Sign in as the designated demo hotel inbox, currently
+   `hotellawsome@gmail.com`, and approve only Gmail readonly access.
+4. Copy the returned `refresh_token` into `.env.local` as
+   `GMAIL_REFRESH_TOKEN`.
+5. Set `GMAIL_OAUTH_SHOW_TOKEN=false` after copying the token.
+
+Do not commit `.env.local`, paste the client secret or refresh token into docs,
+or enable Gmail write scopes. For Cloud Run, store the same values as service
+environment variables or Secret Manager entries; do not hard-code them.
+
 Useful local API checks:
 
 ```bash

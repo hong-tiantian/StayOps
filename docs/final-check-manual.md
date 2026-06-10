@@ -862,6 +862,39 @@ Bad:
 - [ ] No Vercel-allowed wording remains。
 - [ ] Demo script says “Gemini proposes, policy decides”。
 
+### Public repo privacy / secret checklist
+
+公开 repo 提交前必须检查文档和脚本里是否残留个人信息、账号信息或 secret-like values。开发时为了方便写进文档的内容，提交前要删掉、改成 placeholder，或移动到本地 `.env.local`。
+
+重点检查：
+
+- [ ] No personal Gmail / personal email address in public docs。
+- [ ] No real `GOOGLE_CLOUD_PROJECT` / GCP project id in public docs unless intentionally public。
+- [ ] No billing account id in public docs。
+- [ ] No API key / access token / service account private key。
+- [ ] No personal phone number、address、student id、account id。
+- [ ] `builder.md` sections about environment / setup use placeholders such as `<your-gcp-project-id>`。
+- [ ] `.env.local` exists only locally and is not committed。
+- [ ] If a value is required for setup, document the variable name, not the real value。
+
+Suggested scan:
+
+```bash
+rg -n --hidden --glob '!node_modules/**' --glob '!.next/**' --glob '!package-lock.json' \
+  "gmail\\.com|GOOGLE_CLOUD_PROJECT|GCP_PROJECT|PROJECT_ID|BILLING|billing account|API_KEY|SECRET|TOKEN|PRIVATE KEY|AIza|sk-" \
+  README.md AGENTS.md builder.md docs scripts agent src
+```
+
+Good:
+
+- Public docs show only placeholder values。
+- Real values live in `.env.local` or cloud secret/env config。
+
+Bad:
+
+- `builder.md` or docs contain personal Gmail、real GCP project id、billing account id、API key。
+- Setup commands copy-paste real account identifiers。
+
 ---
 
 ## 15. Good / Bad 快速判断表

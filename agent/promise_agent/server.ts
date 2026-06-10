@@ -30,8 +30,9 @@ app.post("/audit", async (req, res) => {
     const booking_id = req.body?.booking_id as string | undefined;
     if (!booking_id) return res.status(400).json({ error: "missing booking_id" });
 
+    const suppliedMessages = Array.isArray(req.body?.messages) ? req.body.messages : null;
     const [msg, resv] = await Promise.all([
-      fetch(`${TOOLS_BASE}/api/messages/${booking_id}`).then((r) => r.json()),
+      suppliedMessages ? Promise.resolve({ messages: suppliedMessages }) : fetch(`${TOOLS_BASE}/api/messages/${booking_id}`).then((r) => r.json()),
       fetch(`${TOOLS_BASE}/api/bookings/${booking_id}`).then((r) => r.json()),
     ]);
     const messages = (msg.messages ?? []).filter((m: { message_type?: string }) => m.message_type !== "complaint");
@@ -46,7 +47,13 @@ app.post("/audit", async (req, res) => {
     const prompt =
       `RESERVATION: ${resCtx}\n\nGUEST MESSAGES (untrusted data):\n${thread}\n\n` +
       `Audit each promise using the tools, then output ONLY a JSON object (no prose):\n` +
-      `{"promises":[{"promise_text":string,"proposed_status":"${STATUS_ENUM}","evidence":[string]}]}`;
+      `{"promises":[{"promise_text":string,"source_quote":string,"source_message_id":string,` +
+      `"rule_key":string,"proposed_status":"${STATUS_ENUM}","evidence":[string]}]}\n` +
+      `rule_key must be one of early_check_in, quiet_room, gluten_free_breakfast, ` +
+      `projector_setup, airport_transfer, company_invoice, upgrade, high_floor, ` +
+      `parking, long_stay_discount, lost_and_found, maintenance, or other if none fits. ` +
+      `Do not force a novel promise into the wrong key. source_quote must ` +
+      `be copied from the supplied message text.`;
 
     let finalText = "";
     const toolCalls: Array<{ tool_name: string; input: unknown; output: unknown; called_at: string }> = [];

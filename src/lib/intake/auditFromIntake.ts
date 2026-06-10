@@ -1,5 +1,4 @@
-import { runPromiseAudit, type AuditResult } from "@/lib/classifier";
-import { ACME_BOOKING_ID } from "@/lib/evaluation/metrics";
+import { runPromiseAuditFromMessages, type AuditResult } from "@/lib/classifier";
 import type { IntakeMessage } from "@/lib/intake/types";
 
 export interface AuditFromIntakeRequest {
@@ -60,21 +59,58 @@ export function mapIntakeToBooking(messages: IntakeMessage[], requestedBookingId
     .map((message) => `${message.subject ?? ""}\n${message.sender ?? ""}\n${message.body_text}`)
     .join("\n")
     .toLowerCase();
-  if (
-    haystack.includes("acme robotics") ||
-    haystack.includes("bkg-2026-0718-acme") ||
-    (haystack.includes("projector") && haystack.includes("quiet king"))
-  ) {
+  if (matchesAcmeDemoBooking(haystack)) {
     return {
-      booking_id: ACME_BOOKING_ID,
-      reason: "intake content matched the Acme demo booking",
+      booking_id: syntheticIntakeBookingId(haystack),
+      reason: "intake content resembles the Acme demo case, but intake audits use an isolated context and do not touch the Acme main flow",
     };
   }
 
   return {
-    booking_id: ACME_BOOKING_ID,
-    reason: "first version only supports the Acme demo booking; unmapped intake fell back to Acme",
+    booking_id: syntheticIntakeBookingId(haystack),
+    reason: "unmapped intake was audited in a new isolated booking context",
   };
+}
+
+function syntheticIntakeBookingId(text: string): string {
+  let hash = 0;
+  for (let i = 0; i < text.length; i += 1) {
+    hash = (hash * 31 + text.charCodeAt(i)) >>> 0;
+  }
+  return `INTAKE-${hash.toString(16).padStart(8, "0").toUpperCase()}`;
+}
+
+function matchesAcmeDemoBooking(haystack: string): boolean {
+  const hasCompany = haystack.includes("acme robotics") || /\bacme\b/.test(haystack);
+  const hasArrivalDate =
+    haystack.includes("july 18") ||
+    haystack.includes("jul 18") ||
+    haystack.includes("07/18") ||
+    haystack.includes("18 july");
+  const hasStayWindow =
+    hasArrivalDate &&
+    (haystack.includes("july 20") ||
+      haystack.includes("jul 20") ||
+      haystack.includes("07/20") ||
+      haystack.includes("20 july"));
+  const hasMeetingClue =
+    haystack.includes("mr-blue") ||
+    haystack.includes("meeting room") ||
+    haystack.includes("projector") ||
+    haystack.includes("presentation");
+  const hasRoomClue =
+    haystack.includes("quiet") ||
+    haystack.includes("king room") ||
+    haystack.includes("king rooms") ||
+    haystack.includes("12 rooms");
+  const hasOpsClue =
+    haystack.includes("breakfast") ||
+    haystack.includes("airport") ||
+    haystack.includes("transfer") ||
+    haystack.includes("invoice") ||
+    haystack.includes("billing");
+
+  return (hasCompany && (hasStayWindow || hasMeetingClue || hasRoomClue)) || (hasArrivalDate && hasMeetingClue && hasOpsClue);
 }
 
 export async function auditFromIntake(body: AuditFromIntakeRequest): Promise<AuditFromIntakeResult> {
@@ -84,7 +120,7 @@ export async function auditFromIntake(body: AuditFromIntakeRequest): Promise<Aud
   }
 
   const mapping = mapIntakeToBooking(messages, body.booking_id);
-  const audit = await runPromiseAudit(mapping.booking_id, { force: true });
+  const audit = await runPromiseAuditFromMessages(messages, { booking_id: mapping.booking_id });
 
   return {
     ok: true,

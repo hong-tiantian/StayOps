@@ -1,4 +1,5 @@
 import { loadBillingAccounts, loadMessages, loadPromiseLedger } from "./data";
+import { alignPromiseRuleKey } from "./agent/policy";
 import {
   ExtraItem,
   ExtraItemDomain,
@@ -12,15 +13,24 @@ import {
 interface RuleMeta {
   domain: ExtraItemDomain;
   subtype?: string;
+  default_text: string;
   required_fields: string[];
   missing_fields: string[];
   verification_route: VerificationRoute;
+}
+
+export interface InfoAnalysisProposal {
+  promise_text?: string;
+  source_quote?: string;
+  source_message_id?: string;
+  rule_key?: string;
 }
 
 const RULE_META: Record<string, RuleMeta> = {
   early_check_in: {
     domain: "arrival_exception",
     subtype: "early_check_in",
+    default_text: "Early check-in request",
     required_fields: [],
     missing_fields: [],
     verification_route: "cannot_confirm_yet",
@@ -28,6 +38,7 @@ const RULE_META: Record<string, RuleMeta> = {
   quiet_room: {
     domain: "room_preference",
     subtype: "quiet_room",
+    default_text: "Quiet room preference",
     required_fields: ["manager_approval", "room_block"],
     missing_fields: ["manager_approval", "room_block"],
     verification_route: "needs_human_approval",
@@ -35,6 +46,7 @@ const RULE_META: Record<string, RuleMeta> = {
   gluten_free_breakfast: {
     domain: "fb_requirement",
     subtype: "gluten_free",
+    default_text: "Gluten-free breakfast requirement",
     required_fields: ["attendee_count"],
     missing_fields: [],
     verification_route: "self_verifiable",
@@ -42,6 +54,7 @@ const RULE_META: Record<string, RuleMeta> = {
   projector_setup: {
     domain: "event_av",
     subtype: "projector",
+    default_text: "Projector setup requirement",
     required_fields: ["meeting_room", "meeting_start"],
     missing_fields: [],
     verification_route: "self_verifiable",
@@ -49,6 +62,7 @@ const RULE_META: Record<string, RuleMeta> = {
   airport_transfer: {
     domain: "transport",
     subtype: "airport_transfer",
+    default_text: "Airport transfer request",
     required_fields: ["flight_number", "arrival_time", "passenger_count", "phone_number"],
     missing_fields: ["flight_number", "arrival_time", "passenger_count", "phone_number"],
     verification_route: "missing_guest_info",
@@ -56,6 +70,7 @@ const RULE_META: Record<string, RuleMeta> = {
   company_invoice: {
     domain: "commercial",
     subtype: "company_invoice",
+    default_text: "Company invoice request",
     required_fields: ["billing_contact", "tax_id", "billing_address"],
     missing_fields: ["billing_contact", "tax_id", "billing_address"],
     verification_route: "missing_guest_info",
@@ -63,6 +78,7 @@ const RULE_META: Record<string, RuleMeta> = {
   upgrade: {
     domain: "exception_value",
     subtype: "upgrade",
+    default_text: "Room upgrade request",
     required_fields: ["manager_approval"],
     missing_fields: ["manager_approval"],
     verification_route: "needs_human_approval",
@@ -70,6 +86,7 @@ const RULE_META: Record<string, RuleMeta> = {
   high_floor: {
     domain: "room_preference",
     subtype: "high_floor",
+    default_text: "High-floor room preference",
     required_fields: [],
     missing_fields: [],
     verification_route: "self_verifiable",
@@ -77,6 +94,7 @@ const RULE_META: Record<string, RuleMeta> = {
   parking: {
     domain: "transport",
     subtype: "parking",
+    default_text: "Parking request",
     required_fields: ["vehicle_plate", "arrival_time"],
     missing_fields: ["vehicle_plate", "arrival_time"],
     verification_route: "missing_guest_info",
@@ -84,6 +102,7 @@ const RULE_META: Record<string, RuleMeta> = {
   long_stay_discount: {
     domain: "commercial",
     subtype: "payment_terms",
+    default_text: "Long-stay discount request",
     required_fields: ["revenue_manager_approval"],
     missing_fields: ["revenue_manager_approval"],
     verification_route: "needs_human_approval",
@@ -91,6 +110,7 @@ const RULE_META: Record<string, RuleMeta> = {
   lost_and_found: {
     domain: "lost_and_found",
     subtype: "lost_item_search",
+    default_text: "Lost-and-found search request",
     required_fields: ["item_description", "last_known_location"],
     missing_fields: [],
     verification_route: "cannot_confirm_yet",
@@ -98,25 +118,26 @@ const RULE_META: Record<string, RuleMeta> = {
   maintenance: {
     domain: "maintenance_service",
     subtype: "repair_request",
+    default_text: "Maintenance repair request",
     required_fields: ["issue_description"],
     missing_fields: [],
     verification_route: "self_verifiable",
   },
 };
 
-const QUOTE_PATTERNS: Record<string, RegExp> = {
-  early_check_in: /Some executives may arrive around 11am, so early check-in would be helpful/i,
-  quiet_room: /Please place our VP in a quiet king room away from elevators if possible/i,
-  gluten_free_breakfast: /We also need gluten-free breakfast for two attendees/i,
-  projector_setup: /a projector in the meeting room/i,
-  airport_transfer: /airport transfer from MAD/i,
-  company_invoice: /a company invoice/i,
-  upgrade: /free upgrade to a suite/i,
-  high_floor: /high-floor quiet room/i,
-  parking: /parking available/i,
-  long_stay_discount: /long-stay discount for the monthly rate/i,
-  lost_and_found: /left a phone charger in my room during my last visit/i,
-  maintenance: /air conditioning in my room isn't cooling/i,
+const RULE_QUOTE_TESTS: Record<string, RegExp[]> = {
+  early_check_in: [/\bearly check[- ]?in\b/i, /\barriv\w*\b[^.!?;,\n]*\b11\s*(?:am|a\.m\.)\b/i],
+  quiet_room: [/\bquiet\b[^.!?;,\n]*\b(?:king|room)\b/i, /\baway from (?:the )?elevators?\b/i, /\bvp\b[^.!?;,\n]*\broom\b/i],
+  gluten_free_breakfast: [/\bgluten[- ]?free\b/i, /\bdietary\b[^.!?;,\n]*\bbreakfast\b/i],
+  projector_setup: [/\bprojector\b/i, /\b(?:screen|hdmi|a\/v|av)\b/i],
+  airport_transfer: [/\bairport transfer\b/i, /\btransfer\b[^.!?;,\n]*\b(?:airport|mad)\b/i, /\bpick\s?up\b[^.!?;,\n]*\bairport\b/i],
+  company_invoice: [/\binvoice\b/i, /\bbilling\b/i, /\btax (?:id|details)\b/i],
+  upgrade: [/\bupgrade\b/i, /\bsuite\b/i],
+  high_floor: [/\bhigh[- ]?floor\b/i, /\bupper floor\b/i, /\btop floor\b/i],
+  parking: [/\bparking\b/i, /\bcar park\b/i, /\bgarage\b/i, /\bvehicle\b/i],
+  long_stay_discount: [/\blong[- ]?stay\b/i, /\bmonthly rate\b/i, /\bdiscount\b/i],
+  lost_and_found: [/\bleft\b[^.!?;,\n]*(?:charger|item|phone)\b/i, /\blost and found\b/i, /\bforgot\b/i],
+  maintenance: [/\bair ?conditioning\b/i, /\bnot cooling\b/i, /\brepair\b/i, /\bfix\b/i, /\bmaintenance\b/i, /\bnot working\b/i],
 };
 
 function inferScope(reservation: Reservation | null): IntakeScope {
@@ -139,14 +160,35 @@ function missingBasicFields(reservation: Reservation | null): string[] {
   return missing;
 }
 
+function fragmentsFor(message: Message): string[] {
+  return message.body
+    .split(/(?<=[.!?])\s+|;\s+|,\s+(?:and\s+)?/i)
+    .map((part) => part.trim())
+    .filter(Boolean);
+}
+
 function quoteFor(ruleKey: string, messages: Message[]): Pick<ExtraItem, "source_message_id" | "source_quote"> {
-  const pattern = QUOTE_PATTERNS[ruleKey];
-  if (!pattern) return {};
+  const tests = RULE_QUOTE_TESTS[ruleKey];
+  if (!tests) return {};
 
   for (const message of messages) {
-    const match = message.body.match(pattern);
-    if (match?.[0]) {
-      return { source_message_id: message.message_id, source_quote: match[0] };
+    for (const fragment of fragmentsFor(message)) {
+      if (tests.some((test) => test.test(fragment))) {
+        return { source_message_id: message.message_id, source_quote: fragment };
+      }
+    }
+  }
+
+  return {};
+}
+
+function findQuoteInMessages(quote: string | undefined, messages: Message[]): Pick<ExtraItem, "source_message_id" | "source_quote"> {
+  const trimmed = quote?.trim();
+  if (!trimmed) return {};
+
+  for (const message of messages) {
+    if (message.body.toLowerCase().includes(trimmed.toLowerCase())) {
+      return { source_message_id: message.message_id, source_quote: trimmed };
     }
   }
 
@@ -173,29 +215,87 @@ function refinedMeta(ruleKey: string, bookingId: string): RuleMeta {
   return { ...meta, missing_fields: missing, verification_route: missing.length ? "missing_guest_info" : "self_verifiable" };
 }
 
-export function analyzeBookingInfo(bookingId: string, reservation: Reservation | null): InfoAnalysis {
-  const messages = loadMessages().filter((m) => m.booking_id === bookingId);
-  const ledger = loadPromiseLedger().filter((p) => p.booking_id === bookingId);
+function stableItemId(ruleKey: string, bookingId: string, index: number): string {
+  const existing = loadPromiseLedger().find((p) => p.booking_id === bookingId && p.category === ruleKey);
+  return existing?.promise_id ?? `ITEM-${String(index + 1).padStart(3, "0")}`;
+}
+
+function toExtraItem(
+  ruleKey: string,
+  bookingId: string,
+  index: number,
+  messages: Message[],
+  proposal?: InfoAnalysisProposal
+): ExtraItem {
+  const meta = refinedMeta(ruleKey, bookingId);
+  const proposalQuote = findQuoteInMessages(proposal?.source_quote, messages);
+  const fallbackQuote = quoteFor(ruleKey, messages);
+  const quote = proposalQuote.source_quote || fallbackQuote.source_quote || proposal?.source_quote?.trim();
+  const sourceMessageId =
+    proposalQuote.source_message_id ||
+    fallbackQuote.source_message_id ||
+    proposal?.source_message_id;
+
+  return {
+    item_id: stableItemId(ruleKey, bookingId, index),
+    text: proposal?.promise_text?.trim() || quote || meta.default_text,
+    source_message_id: sourceMessageId,
+    source_quote: quote,
+    domain: meta.domain,
+    subtype: meta.subtype,
+    clarity: meta.missing_fields.length ? "missing_required_fields" : "clear",
+    required_fields: meta.required_fields,
+    missing_fields: meta.missing_fields,
+    verification_route: meta.verification_route,
+    rule_key: ruleKey,
+  };
+}
+
+function extraItemsFromProposals(
+  bookingId: string,
+  messages: Message[],
+  proposals: InfoAnalysisProposal[]
+): ExtraItem[] {
+  const seen = new Set<string>();
+  const items: ExtraItem[] = [];
+
+  for (const proposal of proposals) {
+    const ruleKey =
+      proposal.rule_key ||
+      alignPromiseRuleKey(`${proposal.promise_text ?? ""}\n${proposal.source_quote ?? ""}`) ||
+      "";
+    if (!ruleKey || seen.has(ruleKey)) continue;
+    seen.add(ruleKey);
+    items.push(toExtraItem(ruleKey, bookingId, items.length, messages, proposal));
+  }
+
+  return items;
+}
+
+function extraItemsFromMessages(bookingId: string, messages: Message[]): ExtraItem[] {
+  const items: ExtraItem[] = [];
+  for (const ruleKey of Object.keys(RULE_META)) {
+    const quote = quoteFor(ruleKey, messages);
+    if (!quote.source_quote) continue;
+    items.push(toExtraItem(ruleKey, bookingId, items.length, messages, { source_quote: quote.source_quote }));
+  }
+  return items;
+}
+
+export function analyzeBookingInfo(
+  bookingId: string,
+  reservation: Reservation | null,
+  messageOverride?: Message[],
+  proposals: InfoAnalysisProposal[] = []
+): InfoAnalysis {
+  const messages = messageOverride ?? loadMessages().filter((m) => m.booking_id === bookingId);
   const missing = missingBasicFields(reservation);
   const basicComplete = missing.length === 0;
-
-  const extraItems: ExtraItem[] = basicComplete
-    ? ledger.map((row) => {
-        const meta = refinedMeta(row.category, bookingId);
-        return {
-          item_id: row.promise_id,
-          text: row.promise_text,
-          ...quoteFor(row.category, messages),
-          domain: meta.domain,
-          subtype: meta.subtype,
-          clarity: meta.missing_fields.length ? "missing_required_fields" : "clear",
-          required_fields: meta.required_fields,
-          missing_fields: meta.missing_fields,
-          verification_route: meta.verification_route,
-          rule_key: row.category,
-        };
-      })
-    : [];
+  const nonComplaintMessages = messages.filter((m) => m.message_type !== "complaint");
+  const proposedItems = extraItemsFromProposals(bookingId, nonComplaintMessages, proposals);
+  const extractedItems = proposedItems.length
+    ? proposedItems
+    : extraItemsFromMessages(bookingId, nonComplaintMessages);
 
   return {
     booking_id: bookingId,
@@ -213,6 +313,6 @@ export function analyzeBookingInfo(bookingId: string, reservation: Reservation |
       primary_contact: reservation?.primary_contact,
     },
     missing_basic_fields: missing,
-    extra_items: extraItems,
+    extra_items: extractedItems,
   };
 }
