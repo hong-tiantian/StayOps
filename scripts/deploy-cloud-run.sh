@@ -16,7 +16,7 @@ if ! command -v gcloud >/dev/null 2>&1; then
 fi
 command -v gcloud >/dev/null 2>&1 || { echo "gcloud not found — install the Google Cloud SDK first."; exit 1; }
 
-PROJECT="${GCP_PROJECT:-project-8b1cd981-640f-41b1-9c6}"
+PROJECT="${GCP_PROJECT:-stayops-498807}"
 REGION="${GCP_REGION:-us-central1}"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
@@ -25,6 +25,7 @@ PHOENIX_COLLECTOR_ENDPOINT="$(grep -E '^PHOENIX_COLLECTOR_ENDPOINT=' "$ROOT/.env
 PHOENIX_API_KEY="$(grep -E '^PHOENIX_API_KEY=' "$ROOT/.env.local" | cut -d= -f2-)"
 
 echo "==> [0/3] One-time setup: APIs + Cloud Build permissions for the default compute SA ..."
+echo "==> Target project: $PROJECT"
 gcloud services enable run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com \
   --project "$PROJECT"
 PROJECT_NUMBER="$(gcloud projects describe "$PROJECT" --format 'value(projectNumber)')"
