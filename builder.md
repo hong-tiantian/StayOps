@@ -8,7 +8,7 @@
 
 ## 0. 为什么做这件事（目标）
 
-比赛（Google Cloud Rapid Agent Hackathon，**截止 2026-06-11 14:00 PT**）Stage One 硬性要求：
+比赛（Google Cloud Rapid Agent Hackathon，**截止 2026-06-11 14:00 PT / 2026-06-12 07:00 GMT+10 Sydney time**）Stage One 硬性要求：
 
 1. ✅ **用 Gemini** 做模型 —— 已有（`@google/genai`，`src/lib/gemini.ts`）。
 2. 🟡 **用 Google Cloud Agent Builder / ADK 做编排（managed orchestration path）** —— 本地链路已跑通，Cloud Run 部署和提交材料仍待完成。
@@ -110,7 +110,9 @@ primary:  Next.js API route ──调用──> ADK Agent (本地已跑通；目
 | 项 | 值 |
 |----|----|
 | Project ID | `stayops-498807`（默认 project 已设） |
+| Project number | `165249719568` |
 | Region | `us-central1`（ai/region + run/region 已设） |
+| Cloud Run web URL | `https://stayops-mzcsrz357a-uc.a.run.app` |
 | Billing | `01763A-E0192F-437F75`（已关联，billingEnabled=true） |
 | 登录账号 | `tiantianhong23@gmail.com` |
 | gcloud 路径 | `C:\Users\Lenovo\AppData\Local\Google\Cloud SDK\google-cloud-sdk\bin` |

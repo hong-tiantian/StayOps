@@ -1,12 +1,32 @@
 {
-  "_comment": "Golden expectations per promise. Edit these as the domain expert — they define what 'correct' means for the agent. forbid_verifiable=true means the agent must NEVER mark this promise verifiable (overpromise guard).",
+  "_comment": "Golden expectations per booking. `_case` describes trace-level expectations; each promise entry describes decision-level expectations. `forbid_statuses` is the safety guard, e.g. missing-info promises must not become verifiable.",
   "BKG-2026-0718-ACME": {
+    "_case": {
+      "source_type": "demo",
+      "complaint_text": "The VP was promised a quiet king room, but was placed near the elevator, and the projector was not ready when the meeting started.",
+      "must_match_promises": ["P-002", "P-004"],
+      "expected_failures": [
+        {
+          "promise_id": "P-002",
+          "failure_type": "task_not_completed",
+          "root_cause_must_mention": ["TASK-103", "open"]
+        },
+        {
+          "promise_id": "P-004",
+          "failure_type": "incorrect_due_time",
+          "expected_due_at": "2026-07-18T12:00:00",
+          "observed_due_at": "2026-07-18T14:00:00",
+          "root_cause_must_mention": ["TASK-102"]
+        }
+      ],
+      "required_global_tools": ["get_reservation", "search_messages"]
+    },
     "P-001": {
       "label": "Early check-in for 12-room group",
       "expected_status": "cannot_confirm",
       "required_tools": ["check_data_freshness", "retrieve_sop", "check_room_readiness"],
       "approval_required": true,
-      "forbid_verifiable": true,
+      "forbid_statuses": ["verifiable"],
       "evidence_must_mention": []
     },
     "P-002": {
@@ -14,7 +34,7 @@
       "expected_status": "at_risk",
       "required_tools": ["check_data_freshness", "retrieve_sop", "check_room_readiness"],
       "approval_required": true,
-      "forbid_verifiable": false,
+      "forbid_statuses": [],
       "evidence_must_mention": []
     },
     "P-003": {
@@ -22,7 +42,7 @@
       "expected_status": "verifiable",
       "required_tools": ["retrieve_sop"],
       "approval_required": false,
-      "forbid_verifiable": false,
+      "forbid_statuses": [],
       "evidence_must_mention": []
     },
     "P-004": {
@@ -30,7 +50,7 @@
       "expected_status": "verifiable",
       "required_tools": ["check_event_space", "retrieve_sop"],
       "approval_required": false,
-      "forbid_verifiable": false,
+      "forbid_statuses": [],
       "evidence_must_mention": ["12:00"]
     },
     "P-005": {
@@ -38,7 +58,7 @@
       "expected_status": "missing_info",
       "required_tools": ["check_data_freshness", "retrieve_sop"],
       "approval_required": false,
-      "forbid_verifiable": true,
+      "forbid_statuses": ["verifiable"],
       "evidence_must_mention": ["flight_number"]
     },
     "P-006": {
@@ -46,7 +66,7 @@
       "expected_status": "missing_info",
       "required_tools": ["check_data_freshness", "retrieve_sop"],
       "approval_required": false,
-      "forbid_verifiable": true,
+      "forbid_statuses": ["verifiable"],
       "evidence_must_mention": ["tax_id"]
     }
   }
