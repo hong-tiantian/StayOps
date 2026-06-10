@@ -2,27 +2,22 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import AppShell, { TabDef } from "@/components/AppShell";
-import BookingHeader from "@/components/BookingHeader";
-import DataFreshnessPanel from "@/components/DataFreshnessPanel";
-import BookingEmailPanel from "@/components/BookingEmailPanel";
+import CommandWorkspace, { WorkspaceMode } from "@/components/CommandWorkspace";
 import PromiseLedger from "@/components/PromiseLedger";
 import PromiseDetailDrawer from "@/components/PromiseDetailDrawer";
 import TaskBoard, { DecoratedTask } from "@/components/TaskBoard";
 import TimelineView from "@/components/TimelineView";
 import HotelMap from "@/components/HotelMap";
 import ComplaintRecovery from "@/components/ComplaintRecovery";
-import ToolCallLog from "@/components/ToolCallLog";
-import SpotlightCard from "@/components/SpotlightCard";
-import ManagerBriefing from "@/components/ManagerBriefing";
-import SelfReview from "@/components/SelfReview";
-import AgentTeamFlow from "@/components/AgentTeamFlow";
 import {
   AgentTraceStage,
   FreshnessResult,
+  InfoAnalysis,
   Message,
   PromiseDecision,
   RecoveryTrace,
   Reservation,
+  TaskPlan,
   ToolCall,
 } from "@/lib/types";
 import { Lang, ui } from "@/lib/i18n";
@@ -35,6 +30,7 @@ const DEFAULT_COMPLAINT =
 export default function Page() {
   const [lang, setLang] = useState<Lang>("en");
   const [activeTab, setActiveTab] = useState("dashboard");
+  const [workspaceMode, setWorkspaceMode] = useState<WorkspaceMode>("manager");
   const [bookingId, setBookingId] = useState(SEED_BOOKING);
   const [bookings, setBookings] = useState<Array<{ booking_id: string; company_name: string }>>([]);
   const t = ui[lang];
@@ -60,6 +56,8 @@ export default function Page() {
   const [decisions, setDecisions] = useState<PromiseDecision[]>([]);
   const [auditCalls, setAuditCalls] = useState<ToolCall[]>([]);
   const [agentTrace, setAgentTrace] = useState<AgentTraceStage[]>([]);
+  const [infoAnalysis, setInfoAnalysis] = useState<InfoAnalysis | null>(null);
+  const [taskPlan, setTaskPlan] = useState<TaskPlan[]>([]);
   const [reasoningSource, setReasoningSource] = useState<"adk" | "gemini" | "rules" | null>(null);
   const [tasks, setTasks] = useState<DecoratedTask[]>([]);
   const [approved, setApproved] = useState<Set<string>>(new Set());
@@ -85,12 +83,20 @@ export default function Page() {
       setDecisions(j.decisions);
       setAuditCalls(j.tool_calls);
       setAgentTrace(j.agent_trace ?? []);
+      setInfoAnalysis(j.info_analysis ?? null);
+      setTaskPlan(j.task_plan ?? []);
       setFreshness(j.freshness_summary);
+      setAllFresh((j.freshness_summary ?? []).every((s: FreshnessResult) => s.freshness_status === "fresh"));
       setReasoningSource(j.reasoning_source ?? null);
+      setSelected((prev) =>
+        prev && (j.decisions ?? []).some((d: PromiseDecision) => d.promise_id === prev.promise_id)
+          ? prev
+          : (j.decisions?.[0] ?? null)
+      );
       await refreshTasks();
       if (!silent) {
         setAuditing(false);
-        setActiveTab("ledger");
+        setActiveTab("dashboard");
       }
     },
     [refreshTasks, bookingId]
@@ -199,32 +205,32 @@ export default function Page() {
       onBooking={setBookingId}
     >
       {activeTab === "dashboard" && (
-        <div className="space-y-5">
-          <ManagerBriefing
-            reservation={reservation}
-            decisions={decisions}
-            tasks={tasks}
-            freshness={freshness}
-            onRunAudit={() => runAudit(false)}
-            onTrace={() => traceComplaint(DEFAULT_COMPLAINT)}
-            auditing={auditing}
-            tracing={tracing}
-            lang={lang}
-            reasoningSource={reasoningSource}
-          />
-          <AgentTeamFlow stages={agentTrace} lang={lang} />
-          <BookingHeader reservation={reservation} lang={lang} />
-          <DataFreshnessPanel sources={freshness} demoNow={demoNow} lang={lang} onToggle={toggleStaleSource} />
-          <div className="grid gap-4 lg:grid-cols-2">
-            <BookingEmailPanel messages={messages} lang={lang} />
-            <SpotlightCard className="p-4">
-              <h2 className="mb-1 text-sm font-semibold text-slate-900">{t.activity.title}</h2>
-              <p className="mb-3 text-[11px] text-slate-400">{t.activity.body}</p>
-              <ToolCallLog calls={auditCalls} dense />
-            </SpotlightCard>
-          </div>
-          <SelfReview lang={lang} refreshKey={approved.size} />
-        </div>
+        <CommandWorkspace
+          mode={workspaceMode}
+          onMode={setWorkspaceMode}
+          lang={lang}
+          reservation={reservation}
+          messages={messages}
+          decisions={decisions}
+          selected={selected}
+          onSelect={setSelected}
+          approved={approved}
+          onApprove={approve}
+          tasks={tasks}
+          taskPlan={taskPlan}
+          infoAnalysis={infoAnalysis}
+          freshness={freshness}
+          demoNow={demoNow}
+          agentTrace={agentTrace}
+          auditCalls={auditCalls}
+          reasoningSource={reasoningSource}
+          trace={trace}
+          onRunAudit={() => runAudit(false)}
+          onTrace={() => traceComplaint(DEFAULT_COMPLAINT)}
+          onToggleFreshness={toggleStaleSource}
+          auditing={auditing}
+          tracing={tracing}
+        />
       )}
 
       {activeTab === "ledger" && (

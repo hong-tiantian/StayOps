@@ -24,55 +24,53 @@ export default function ToolCallLog({
 
   if (!calls || calls.length === 0) {
     return (
-      <div className="rounded-xl border border-dashed border-slate-200 px-3 py-6 text-center text-xs italic text-slate-400">
+      <div className="rounded-xl border border-dashed border-white/12 px-3 py-6 text-center text-[13px] italic text-white/35">
         No activity yet — run the promise audit or trace a complaint.
       </div>
     );
   }
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-2.5">
       <div className="flex items-center justify-between">
         {!dense ? (
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">{title}</h3>
+          <h3 className="t-label">{title}</h3>
         ) : (
-          <span className="text-[10px] uppercase tracking-wide text-slate-400">
-            {calls.length} steps
-          </span>
+          <span className="t-label">{calls.length} steps</span>
         )}
         <button
           onClick={() => setTech((v) => !v)}
-          className={`rounded-full px-2 py-0.5 text-[10px] font-medium transition-colors ${
-            tech ? "bg-slate-800 text-white" : "bg-slate-100 text-slate-500 hover:bg-slate-200"
+          className={`rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors ${
+            tech ? "bg-white/90 text-slate-950" : "border border-white/12 bg-white/5 text-white/55 hover:bg-white/12"
           }`}
         >
           {tech ? "Hide technical" : "Technical view"}
         </button>
       </div>
 
-      <ol className="relative space-y-2 border-l border-slate-200 pl-4">
+      <ol className="relative space-y-2.5 border-l border-white/10 pl-4">
         {calls.map((c, i) => (
           <li key={i} className="relative animate-fadeup" style={{ animationDelay: `${i * 25}ms` }}>
-            <span className="absolute -left-[21px] top-1.5 grid h-4 w-4 place-items-center rounded-full bg-white text-[9px] shadow ring-1 ring-slate-200">
+            <span className="absolute -left-[21px] top-1.5 grid h-4 w-4 place-items-center rounded-full bg-white/10 text-[9px] ring-1 ring-white/15">
               {toolIcon(c.tool_name)}
             </span>
-            <div className="rounded-xl border border-slate-200/70 bg-white/70 px-3 py-2">
+            <div className="rounded-xl border border-white/8 bg-white/[0.03] px-3 py-2.5">
               <div className="flex items-center justify-between gap-2">
-                <span className="text-xs font-medium text-slate-800">{toolLabel(c.tool_name)}</span>
+                <span className="text-[13px] font-medium text-white/85">{toolLabel(c.tool_name)}</span>
                 {tech && (
                   <button
                     onClick={() => setOpen(open === i ? null : i)}
-                    className="font-mono text-[9px] text-slate-400 hover:text-slate-700"
+                    className="font-mono text-[10px] text-white/40 hover:text-white/80"
                   >
                     {c.tool_name}() {open === i ? "▾" : "▸"}
                   </button>
                 )}
               </div>
-              <p className="mt-0.5 text-[11px] leading-snug text-slate-500">{describeCall(c)}</p>
+              <p className="mt-0.5 text-[12px] leading-snug text-white/50">{describeCall(c)}</p>
 
               {tech && open === i && (
-                <div className="mt-2 rounded-lg bg-slate-900 p-2 font-mono text-[10px] text-slate-200">
-                  <div className="text-slate-400">// {c.called_at}</div>
+                <div className="mt-2 rounded-lg bg-black/50 p-2 font-mono text-[10px] text-slate-200 ring-1 ring-white/10">
+                  <div className="text-white/40">// {c.called_at}</div>
                   <div className="text-sky-300">input</div>
                   <pre className="whitespace-pre-wrap break-words">
                     {JSON.stringify(c.input, null, 2)}

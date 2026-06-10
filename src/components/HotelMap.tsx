@@ -22,10 +22,10 @@ const ROOMS: MapRoom[] = [
 ];
 
 const SUIT: Record<MapRoom["suitability"], { tile: string; dot: string; label: string }> = {
-  suitable: { tile: "from-emerald-50 to-white border-emerald-300", dot: "bg-emerald-500", label: "Suitable" },
-  candidate_later: { tile: "from-amber-50 to-white border-amber-300", dot: "bg-amber-500", label: "Ready later" },
-  unsuitable: { tile: "from-rose-50 to-white border-rose-300", dot: "bg-rose-500", label: "Unsuitable" },
-  support: { tile: "from-slate-50 to-white border-slate-200", dot: "bg-slate-400", label: "Group" },
+  suitable: { tile: "border-emerald-300/40 bg-emerald-400/12", dot: "bg-emerald-400", label: "Suitable" },
+  candidate_later: { tile: "border-amber-300/40 bg-amber-400/12", dot: "bg-amber-400", label: "Ready later" },
+  unsuitable: { tile: "border-rose-300/40 bg-rose-400/12", dot: "bg-rose-400", label: "Unsuitable" },
+  support: { tile: "border-white/15 bg-white/[0.05]", dot: "bg-slate-400", label: "Group" },
 };
 
 export default function HotelMap({
@@ -50,29 +50,34 @@ export default function HotelMap({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-3 text-[11px] text-slate-500">
+      <div>
+        <h1 className="t-title">Hotel Map</h1>
+        <p className="t-caption mt-0.5">Room placement and suitability for the VP quiet-king promise</p>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-4 text-[13px] text-white/55">
         {(["suitable", "candidate_later", "unsuitable", "support"] as const).map((k) => (
           <span key={k} className="flex items-center gap-1.5">
             <span className={`h-2.5 w-2.5 rounded-full ${SUIT[k].dot}`} />
             {SUIT[k].label}
           </span>
         ))}
-        <span className="ml-1 text-slate-400">🛗 elevator · 🔇 quiet zone</span>
+        <span className="ml-1 text-white/40">🛗 elevator · 🔇 quiet zone</span>
       </div>
 
       {highlight && (
-        <div className="card relative animate-fadeup overflow-hidden border-rose-200 p-0">
+        <div className="relative animate-fadeup overflow-hidden rounded-[24px] border border-rose-300/25 bg-rose-400/[0.06] p-0">
           <div className="absolute inset-y-0 left-0 w-1 bg-gradient-to-b from-rose-500 to-rose-300" />
-          <div className="p-4 pl-5">
-            <div className="text-[11px] font-semibold uppercase tracking-wide text-rose-500">
+          <div className="p-5 pl-6">
+            <div className="text-xs font-semibold uppercase tracking-wide text-rose-300">
               Complaint trace · room placement
             </div>
-            <p className="mt-1 text-sm text-slate-700">
-              The VP was actually placed in <strong>Room 402</strong> — in the quiet zone, but{" "}
-              <strong>right beside the elevator</strong>. The promise was a quiet king{" "}
+            <p className="mt-1.5 text-[14px] leading-relaxed text-white/80">
+              The VP was actually placed in <strong className="text-white">Room 402</strong> — in the quiet zone, but{" "}
+              <strong className="text-white">right beside the elevator</strong>. The promise was a quiet king{" "}
               <em>away</em> from elevators. The front desk never locked a suitable room
               (room-block task still open). The best quiet alternative is{" "}
-              <strong>Room 504</strong>, available after cleaning.
+              <strong className="text-white">Room 504</strong>, available after cleaning.
             </p>
           </div>
         </div>
@@ -82,7 +87,7 @@ export default function HotelMap({
         ref={sceneRef}
         onPointerMove={onMove}
         onPointerLeave={onLeave}
-        className="card overflow-hidden p-6"
+        className="overflow-hidden glass p-6"
         style={{ perspective: "1400px" }}
       >
         <div
@@ -92,17 +97,17 @@ export default function HotelMap({
           {floors.map((floor, fi) => (
             <div key={floor} className="relative" style={{ transformStyle: "preserve-3d" }}>
               <div className="mb-2 flex items-center gap-2" style={{ transform: "rotateZ(14deg) rotateX(-30deg)" }}>
-                <span className="rounded-lg bg-slate-900 px-2.5 py-1 text-[11px] font-semibold text-white shadow">
+                <span className="rounded-lg bg-white/90 px-2.5 py-1 text-[12px] font-semibold text-slate-950 shadow">
                   Floor {floor}
                 </span>
-                <span className="text-[10px] text-slate-400">
+                <span className="text-[11px] text-white/45">
                   {floor >= 4 ? "Quiet zone" : "Standard floor"}
                 </span>
               </div>
 
               {/* tilted floor plate */}
               <div
-                className="relative rounded-2xl border border-slate-200/80 bg-gradient-to-br from-white to-slate-50 p-4"
+                className="relative rounded-2xl border border-white/10 bg-white/[0.04] p-4"
                 style={{
                   backgroundImage:
                     "linear-gradient(to right, rgba(148,163,184,0.10) 1px, transparent 1px), linear-gradient(to bottom, rgba(148,163,184,0.10) 1px, transparent 1px)",
@@ -113,7 +118,7 @@ export default function HotelMap({
               >
                 <div className="flex items-stretch gap-3">
                   {/* elevator shaft */}
-                  <div className="grid w-14 shrink-0 place-items-center rounded-xl border border-dashed border-slate-300 bg-white/70 text-center text-[10px] text-slate-400">
+                  <div className="grid w-14 shrink-0 place-items-center rounded-xl border border-dashed border-white/20 bg-white/[0.04] text-center text-[11px] text-white/45">
                     <div>
                       <div className="text-lg leading-none">🛗</div>
                       lift
@@ -127,7 +132,7 @@ export default function HotelMap({
                       return (
                         <div
                           key={r.room_id}
-                          className={`group relative rounded-xl border bg-gradient-to-b ${s.tile} p-2.5 transition-all duration-300 hover:-translate-y-1`}
+                          className={`group relative rounded-xl border ${s.tile} p-2.5 transition-all duration-300 hover:-translate-y-1`}
                           style={{
                             boxShadow: isAssigned
                               ? "0 18px 30px -12px rgba(244,63,94,0.55), 0 0 0 2px rgba(244,63,94,0.6)"
@@ -139,19 +144,19 @@ export default function HotelMap({
                           {/* billboard content (faces camera) */}
                           <div style={{ transform: "rotateZ(14deg) rotateX(-30deg)" }}>
                             <div className="flex items-center justify-between">
-                              <span className="text-sm font-semibold text-slate-800">
+                              <span className="text-[15px] font-bold text-white">
                                 {r.room_id}
                               </span>
-                              <span className="flex items-center gap-0.5 text-[11px]">
+                              <span className="flex items-center gap-0.5 text-[12px]">
                                 {r.quiet && <span title="quiet zone">🔇</span>}
                                 {r.nearElevator && <span title="near elevator">🛗</span>}
                               </span>
                             </div>
-                            <div className="flex items-center gap-1 text-[10px] uppercase tracking-wide text-slate-400">
+                            <div className="flex items-center gap-1 text-[11px] uppercase tracking-wide text-white/50">
                               <span className={`h-1.5 w-1.5 rounded-full ${s.dot}`} />
                               {r.type}
                             </div>
-                            <p className="mt-1 hidden text-[10px] leading-snug text-slate-500 group-hover:block">
+                            <p className="mt-1 hidden text-[11px] leading-snug text-white/60 group-hover:block">
                               {r.note}
                             </p>
                             {isAssigned && (
@@ -170,7 +175,7 @@ export default function HotelMap({
           ))}
         </div>
       </div>
-      <p className="text-center text-[10px] text-slate-400">
+      <p className="text-center text-[12px] text-white/40">
         Hover a room for detail · move the cursor across the map to look around
       </p>
     </div>
