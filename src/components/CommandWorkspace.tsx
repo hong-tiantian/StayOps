@@ -125,6 +125,7 @@ export default function CommandWorkspace({
   const [editing, setEditing] = useState(false);
   const [resetNonce, setResetNonce] = useState(0);
   const [workflowOpen, setWorkflowOpen] = useState(false);
+  const [drillPanel, setDrillPanel] = useState<"atrisk" | "missing" | "blocked" | "all" | null>(null);
 
   const total = decisions.length || 0;
   const safe = decisions.filter((d) => bucketOf(d.status) === "verifiable").length;
@@ -177,13 +178,13 @@ export default function CommandWorkspace({
   const stackCards = decisions.slice(0, 4);
 
   /* ---------------- overview chips ---------------- */
-  const chips = [
-    { label: zh ? "承诺" : "Promises", value: total, rgb: "226,232,240" },
-    { label: zh ? "安全" : "Safe", value: safe, rgb: "52,211,153" },
-    { label: zh ? "风险" : "Risk", value: risk, rgb: "251,191,36" },
-    { label: zh ? "缺信息" : "Missing", value: missing, rgb: "34,211,238" },
-    { label: zh ? "无法确认" : "Blocked", value: blocked, rgb: "251,113,133" },
-    { label: zh ? "改判" : "Override", value: overrides, rgb: "167,139,250" },
+  const chips: Array<{ label: string; value: number; rgb: string; drill: "all" | "atrisk" | "missing" | "blocked" | null }> = [
+    { label: zh ? "承诺" : "Promises", value: total, rgb: "226,232,240", drill: "all" },
+    { label: zh ? "安全" : "Safe", value: safe, rgb: "52,211,153", drill: null },
+    { label: zh ? "风险" : "Risk", value: risk, rgb: "251,191,36", drill: "atrisk" },
+    { label: zh ? "缺信息" : "Missing", value: missing, rgb: "34,211,238", drill: "missing" },
+    { label: zh ? "无法确认" : "Blocked", value: blocked, rgb: "251,113,133", drill: "blocked" },
+    { label: zh ? "改判" : "Override", value: overrides, rgb: "167,139,250", drill: null },
   ];
 
   /* ---------------- widget bodies ---------------- */
@@ -213,6 +214,7 @@ export default function CommandWorkspace({
 
   const kpiWidget = (key: "atrisk" | "missing") => {
     const isRisk = key === "atrisk";
+    const count = isRisk ? risk : missing;
     return (
       <WidgetCard
         title={isRisk ? (zh ? "高风险 / 待审批" : "At risk / approval") : zh ? "缺信息" : "Missing info"}
@@ -221,10 +223,19 @@ export default function CommandWorkspace({
       >
         <div className="flex h-full flex-col justify-between">
           <div className="flex items-start justify-between">
-            <CountUp value={isRisk ? risk : missing} className="t-metric block" />
+            <CountUp value={count} className="t-metric block" />
             <TrendPill value={isRisk ? risk : -missing} suffix="" />
           </div>
-          <div className="t-caption">{isRisk ? (zh ? "需要经理判断" : "needs manager judgment") : zh ? "需客人/公司补充" : "guest / company follow-up"}</div>
+          <div className="t-caption mb-2">{isRisk ? (zh ? "需要经理判断" : "needs manager judgment") : zh ? "需客人/公司补充" : "guest / company follow-up"}</div>
+          {count > 0 && (
+            <button
+              onClick={() => setDrillPanel(isRisk ? "atrisk" : "missing")}
+              onMouseDown={(e) => editing && e.stopPropagation()}
+              className="h-7 w-full rounded-lg border border-white/12 bg-white/[0.05] text-[11px] font-medium text-white/70 transition hover:bg-white/[0.1] hover:text-white"
+            >
+              {zh ? `查看全部 ${count} 条 →` : `View all ${count} →`}
+            </button>
+          )}
         </div>
       </WidgetCard>
     );
@@ -595,6 +606,181 @@ export default function CommandWorkspace({
 
   const isManager = mode === "manager";
 
+  /* ---------------- drill panel render ---------------- */
+  const DRILL_ACCENT: Record<string, string> = {
+    verifiable: "52,211,153", completed: "52,211,153", resolved: "52,211,153", task_created: "52,211,153",
+    at_risk: "251,191,36", needs_approval: "251,191,36", approved: "167,139,250",
+    missing_info: "34,211,238",
+    cannot_confirm: "251,113,133", conflict: "251,113,133", failed: "251,113,133",
+  };
+
+  const drillDecisions = drillPanel === "atrisk"
+    ? decisions.filter((d) => ["at_risk", "needs_approval", "approved"].includes(d.status))
+    : drillPanel === "missing"
+    ? decisions.filter((d) => d.status === "missing_info")
+    : drillPanel === "blocked"
+    ? decisions.filter((d) => ["cannot_confirm", "conflict", "failed"].includes(d.status))
+    : decisions;
+
+  const drillTitle =
+    drillPanel === "atrisk" ? (zh ? `高风险 / 待审批 · ${drillDecisions.length}` : `At risk / Approval · ${drillDecisions.length}`)
+    : drillPanel === "missing" ? (zh ? `缺信息 · ${drillDecisions.length}` : `Missing info · ${drillDecisions.length}`)
+    : drillPanel === "blocked" ? (zh ? `无法确认 · ${drillDecisions.length}` : `Blocked · ${drillDecisions.length}`)
+    : zh ? `全部承诺 · ${drillDecisions.length}` : `All promises · ${drillDecisions.length}`;
+
+  const drillPanelNode = drillPanel && (
+    <motion.div
+      key="drill"
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: 8 }}
+      transition={{ duration: 0.22, ease: EASE }}
+      className="space-y-3"
+    >
+      {/* Drill header */}
+      <div className="glass-lite flex items-center gap-4 px-5 py-3.5">
+        <button
+          onClick={() => setDrillPanel(null)}
+          className="flex h-8 items-center gap-1.5 rounded-xl border border-white/12 bg-white/[0.05] px-3 text-[12px] font-medium text-white/70 transition hover:bg-white/[0.1] hover:text-white"
+        >
+          ← {zh ? "返回" : "Back"}
+        </button>
+        <h2 className="t-title">{drillTitle}</h2>
+        {drillPanel === "all" && (
+          <div className="ml-auto flex gap-1">
+            {(["all", "atrisk", "missing", "blocked"] as const).map((key) => (
+              <button
+                key={key}
+                onClick={() => setDrillPanel(key)}
+                className={cx(
+                  "h-7 rounded-lg px-3 text-[11px] font-medium transition",
+                  drillPanel === key ? "bg-white/15 text-white" : "text-white/45 hover:text-white"
+                )}
+              >
+                {key === "all" ? (zh ? "全部" : "All")
+                  : key === "atrisk" ? (zh ? "风险" : "Risk")
+                  : key === "missing" ? (zh ? "缺信息" : "Missing")
+                  : zh ? "阻塞" : "Blocked"}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Promise cards */}
+      {drillDecisions.length === 0 ? (
+        <div className="glass-lite grid h-40 place-items-center text-sm text-white/40">
+          {zh ? "暂无此类承诺" : "No promises in this category"}
+        </div>
+      ) : (
+        <div className="space-y-2.5">
+          {drillDecisions.map((d) => {
+            const accentRgb = DRILL_ACCENT[d.status] ?? "148,163,184";
+            const needsApprove = d.approval_required && !approved.has(d.promise_id);
+            const extraItem = (infoAnalysis?.extra_items ?? []).find((e) => e.item_id === d.promise_id);
+            return (
+              <motion.div
+                key={d.promise_id}
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="status-edge glass rounded-[20px] px-5 py-4"
+                style={{ "--edge": accentRgb.replace(/,/g, " ") } as React.CSSProperties}
+              >
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  {/* Left: promise info */}
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-mono text-[10px] text-white/35">{d.promise_id}</span>
+                      <StatusBadge status={d.status} lang={lang} size="xs" />
+                      {d.policy_overruled && (
+                        <span className="rounded-full border border-violet-300/25 bg-violet-400/12 px-2 py-0.5 text-[9px] font-semibold text-violet-200">
+                          {zh ? "安全门改判" : "gate override"}
+                        </span>
+                      )}
+                    </div>
+                    <p className="mt-2 text-[14px] font-semibold leading-snug text-white">{d.promise_text}</p>
+                    {d.evidence[0] && (
+                      <p className="mt-1.5 text-[12px] leading-5 text-white/50">
+                        <span className="mr-1 text-white/25">›</span>{d.evidence[0]}
+                      </p>
+                    )}
+                    {d.risk_reason && (
+                      <p className="mt-1 text-[11.5px] text-white/40">
+                        {zh ? "风险：" : "Risk: "}{d.risk_reason}
+                      </p>
+                    )}
+                    {extraItem?.missing_fields && extraItem.missing_fields.length > 0 && (
+                      <p className="mt-1 text-[11.5px] text-cyan-200/70">
+                        {zh ? "缺失字段：" : "Missing: "}{extraItem.missing_fields.join(", ")}
+                      </p>
+                    )}
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {d.promise_type.map((pt) => (
+                        <span key={pt} className="rounded bg-white/[0.06] px-2 py-0.5 text-[10px] text-white/50">
+                          {pt.replace(/_/g, " ")}
+                        </span>
+                      ))}
+                      <span className="rounded bg-white/[0.06] px-2 py-0.5 text-[10px] text-white/50">
+                        {DEPT_ICON[d.owner_department] ?? "•"} {d.owner_department.replace(/_/g, " ")}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Right: action buttons */}
+                  <div className="flex shrink-0 flex-col items-end gap-2">
+                    {needsApprove && (
+                      <button
+                        onClick={() => onApprove(d.promise_id)}
+                        className="h-9 rounded-xl bg-amber-400/90 px-5 text-[12px] font-semibold text-slate-950 transition hover:bg-amber-400 active:scale-95"
+                      >
+                        {zh ? "批准" : "Approve"}
+                      </button>
+                    )}
+                    {approved.has(d.promise_id) && (
+                      <span className="rounded-full border border-violet-300/30 bg-violet-400/12 px-3 py-1.5 text-[11px] font-semibold text-violet-100">
+                        {zh ? "✓ 已批准" : "✓ Approved"}
+                      </span>
+                    )}
+                    {(d.status === "cannot_confirm" || d.status === "conflict") && (
+                      <button
+                        onClick={() => onSelect(d)}
+                        className="h-9 rounded-xl border border-rose-300/30 bg-rose-400/12 px-5 text-[12px] font-semibold text-rose-100 transition hover:bg-rose-400/18 active:scale-95"
+                      >
+                        {zh ? "上报" : "Escalate"}
+                      </button>
+                    )}
+                    {d.status === "missing_info" && (
+                      <button
+                        onClick={() => onSelect(d)}
+                        className="h-9 rounded-xl border border-cyan-300/30 bg-cyan-400/12 px-5 text-[12px] font-semibold text-cyan-100 transition hover:bg-cyan-400/18 active:scale-95"
+                      >
+                        {zh ? "发起跟进" : "Follow up"}
+                      </button>
+                    )}
+                    <button
+                      onClick={() => onSelect(d)}
+                      className="h-8 rounded-xl border border-white/10 bg-white/[0.05] px-4 text-[11px] font-medium text-white/60 transition hover:bg-white/[0.1] hover:text-white"
+                    >
+                      {zh ? "查看详情 →" : "Details →"}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Recommended action */}
+                {d.recommended_action && (
+                  <div className="mt-3 rounded-xl border border-white/[0.06] bg-white/[0.025] px-3.5 py-2.5 text-[12px] leading-5 text-white/55">
+                    <span className="mr-1.5 font-semibold text-white/35">{zh ? "建议：" : "Action:"}</span>
+                    {d.recommended_action}
+                  </div>
+                )}
+              </motion.div>
+            );
+          })}
+        </div>
+      )}
+    </motion.div>
+  );
+
   return (
     <div className="space-y-4">
       {/* ---------------- Toolbar ---------------- */}
@@ -633,19 +819,35 @@ export default function CommandWorkspace({
             : <>This audit covers <b className="tnum font-semibold text-white">{total}</b> promises{flowAlerts ? <>, <b className="tnum font-semibold text-rose-300">{flowAlerts}</b> workflow alerts</> : null}</>}
         </p>
         <div className="flex flex-wrap items-baseline gap-x-5 gap-y-1.5">
-          {chips.map((c, i) => (
-            <div key={c.label} className="flex items-center gap-2">
-              {i > 0 && <span className="-ml-2.5 mr-2.5 hidden h-3.5 w-px bg-white/10 sm:block" />}
-              <span className="h-1.5 w-1.5 rounded-full" style={{ background: `rgb(${c.rgb})` }} />
-              <span className="t-label">{c.label}</span>
-              <span className="tnum text-[15px] font-semibold leading-none text-white">{c.value}</span>
-            </div>
-          ))}
+          {chips.map((c, i) => {
+            const inner = (
+              <>
+                {i > 0 && <span className="-ml-2.5 mr-2.5 hidden h-3.5 w-px bg-white/10 sm:block" />}
+                <span className="h-1.5 w-1.5 rounded-full" style={{ background: `rgb(${c.rgb})` }} />
+                <span className="t-label">{c.label}</span>
+                <span className="tnum text-[15px] font-semibold leading-none text-white">{c.value}</span>
+                {c.drill && c.value > 0 && <span className="text-[10px] text-white/30">↗</span>}
+              </>
+            );
+            return c.drill && c.value > 0 ? (
+              <button
+                key={c.label}
+                onClick={() => setDrillPanel(c.drill!)}
+                className="flex items-center gap-2 rounded-lg px-1.5 py-1 transition hover:bg-white/[0.07]"
+              >
+                {inner}
+              </button>
+            ) : (
+              <div key={c.label} className="flex items-center gap-2 px-1.5 py-1">
+                {inner}
+              </div>
+            );
+          })}
         </div>
       </div>
 
-      {/* ---------------- Widget grid ---------------- */}
-      {isManager ? (
+      {/* ---------------- Drill panel or Widget grid ---------------- */}
+      {drillPanel ? drillPanelNode : isManager ? (
         <WidgetGrid key="manager" storageKey="stayops:layout:manager" editing={editing} resetNonce={resetNonce} defaultLayouts={managerLayouts} items={managerItems} />
       ) : (
         <WidgetGrid key="judge" storageKey="stayops:layout:judge" editing={editing} resetNonce={resetNonce} defaultLayouts={judgeLayouts} items={judgeItems} />
