@@ -55,21 +55,63 @@ Use these markers:
 ### Phase Status
 
 - [x] Phase 0 - Planning document
-- [ ] Phase 1 - Gmail intake product contract
-- [ ] Phase 2 - Gmail API/auth decision and local credentials
-- [ ] Phase 3 - Email normalization adapter
-- [ ] Phase 4 - Audit integration contract
-- [ ] Phase 5 - Metrics definitions and golden acceptance targets
-- [ ] Phase 6 - Metrics computation API/script
-- [ ] Phase 7 - Arize/Phoenix metric trace linkage
-- [ ] Phase 8 - Frontend handoff contract
-- [ ] Phase 9 - Verification and manual runbook
+- [x] Phase 1 - Gmail intake product contract
+- [!] Phase 2 - Gmail API/auth decision and local credentials
+- [x] Phase 3 - Email normalization adapter
+- [x] Phase 4 - Audit integration contract
+- [x] Phase 5 - Metrics definitions and golden acceptance targets
+- [x] Phase 6 - Metrics computation API/script
+- [x] Phase 7 - Arize/Phoenix metric trace linkage
+- [x] Phase 8 - Frontend handoff contract
+- [x] Phase 9 - Verification and manual runbook
 
 ### Current Assumption
 
 Claude/teammate is handling the frontend-facing trace/demo changes and the
 current agent architecture cleanup. This plan should stay backend/documentation
 first until those changes are merged.
+
+### Implementation Notes - 2026-06-10
+
+- Added backend-only intake contract in `src/lib/intake/types.ts`.
+- Added Gmail normalization/degraded adapter in `src/lib/intake/gmail.ts`.
+- Added Gmail contract endpoints:
+  - `GET /api/intake/gmail/search?q=...`
+  - `POST /api/intake/gmail/import { thread_id }`
+- Added intake audit contract:
+  - `POST /api/audit/from-intake`
+- Gmail live API fetch remains blocked on demo mailbox/OAuth decisions. The
+  endpoints return a clear degraded `ok: false` response when credentials or
+  mailbox confirmation are not ready.
+- Added metrics computation in `src/lib/evaluation/metrics.ts`.
+- Added `GET/POST /api/eval/[booking_id]` for stable JSON metrics loaded from
+  `evals/goldens.json`.
+- Kept `GET/POST /api/eval/acme` only as a compatibility alias for the Acme demo.
+- Updated `npm run eval` (`scripts/eval.mjs`) to enumerate `evals/goldens.json`
+  and call `/api/eval/[booking_id]` for each golden booking.
+- Extracted Phoenix audit trace summary to `src/lib/evaluation/phoenixTrace.ts`
+  so `/api/insights` and eval metrics use the same trace linkage behavior.
+- Verified `npm run typecheck`, `npm run build`, `npm run eval`, degraded Gmail
+  responses, and manual-paste intake audit locally.
+
+### Direction Update - 2026-06-10 (team decision, post-review)
+
+The intake direction changed from "user-triggered import" to **auto-watched demo
+mailbox**:
+
+- The Intake Agent polls ONE designated demo mailbox (read-only). New emails appear in
+  the intake queue without copy-paste, are triaged (clarity × importance, spec §3.6), and
+  audited on their **actual content**.
+- A `SimulatedInbox` implementation behind the same interface drops seeded emails into
+  the queue on a timer — identical UX, used as the live-demo fallback when OAuth
+  misbehaves. Both implementations must be switchable by env var.
+- `POST /api/audit/from-intake` must stop falling back to the canned Acme audit: it
+  must feed intake content through `runPromiseAuditFromMessages` (seam provided by the
+  audit workstream in `src/lib/classifier.ts`) once that entry point lands.
+- Replies are drafted by the Guest Reply Agent and pass the deterministic reply gate
+  (spec §4.3). Demo "send" is simulated in-app; **no Gmail write scopes**.
+- Hard rule: intake never writes to the Acme main flow (`BKG-2026-0718-ACME`).
+- Still human-owned and urgent: choosing the demo mailbox, OAuth client, and test users.
 
 ## 1. Product Positioning
 
@@ -114,14 +156,15 @@ The project must prove more than "the UI works". The metrics should show:
 Do not build:
 
 - a full email client
-- auto-reply or auto-send email
-- mailbox-wide background automation
+- real outbound email sending (auto-replies are gated drafts + simulated send; see spec §4.3)
+- mailbox-wide background automation beyond the single designated demo mailbox
 - production auth/tenant management
 - real PMS/channel-manager integration
 - Gmail write scopes
 - generic document ingestion unrelated to booking/guest promise messages
 
-Gmail access should be read-only and user-triggered for the hackathon demo.
+Gmail access is read-only. Auto-polling of the ONE designated demo mailbox is in scope
+(2026-06-10 direction update); anything beyond that mailbox is not.
 
 ## 3. Gmail Intake Plan
 
@@ -238,6 +281,53 @@ POST /api/intake/gmail/import { thread_id, booking_id? }
 POST /api/audit/from-intake { intake_id, booking_id? }
 ```
 
+Implemented API contract:
+
+```text
+GET  /api/intake/gmail/search?q=...
+POST /api/intake/gmail/import { thread_id }
+POST /api/audit/from-intake
+```
+
+`POST /api/audit/from-intake` accepts either:
+
+```json
+{
+  "body_text": "Acme Robotics booking email...",
+  "source": "manual_paste",
+  "sender": "maya.chen@acmerobotics.com",
+  "subject": "Acme Robotics stay",
+  "booking_id": "BKG-2026-0718-ACME"
+}
+```
+
+or:
+
+```json
+{
+  "messages": [
+    {
+      "source": "gmail",
+      "external_id": "gmail-message-id",
+      "thread_id": "gmail-thread-id",
+      "sender": "maya.chen@acmerobotics.com",
+      "subject": "Acme Robotics stay",
+      "received_at": "2026-07-10T09:00:00Z",
+      "body_text": "Acme Robotics booking email..."
+    }
+  ]
+}
+```
+
+First version behavior:
+
+- If `booking_id` is supplied, the audit runs against that booking.
+- If the intake content matches Acme Robotics / the Acme demo booking, it maps
+  to `BKG-2026-0718-ACME`.
+- If no booking can be mapped, it falls back to the Acme demo booking and states
+  that first-version limitation in `mapping_reason`.
+- It does not create new bookings, new promises, or new tasks.
+
 Acceptance criteria:
 
 - Existing `/api/audit/BKG-2026-0718-ACME` behavior is unchanged.
@@ -318,15 +408,104 @@ Human-authored case expansion:
 
 - Add 2-3 realistic but synthetic hotel cases written by humans familiar with
   hotel operations.
-- Each case should include:
-  - source message(s), such as sales email, guest follow-up, internal note, or
-    complaint
-  - booking facts and operational constraints
-  - expected promise list
-  - expected final status per promise
-  - expected approval/escalation decisions
-  - expected required tools/evidence
-  - expected task or complaint root-cause result where relevant
+- Each case must be complete enough that another agent or teammate can run the
+  scenario without asking the author what the "right answer" is.
+- Required case contents:
+  1. Case identity:
+     - `case_id`, short title, hotel context, and whether the case is safe for
+       public repo/demo video.
+     - Author/reviewer name or initials and review date.
+  2. Source messages:
+     - One or more synthetic messages such as sales email, guest follow-up,
+       internal note, OTA note, or complaint.
+     - For each message: `message_id`, source/channel, sender role, timestamp,
+       subject if email-like, and body text.
+     - The messages should contain all promise language the agent is expected
+       to extract; do not hide required facts outside the case file.
+  3. Booking facts:
+     - Booking id, guest/company name, arrival/departure dates, arrival time,
+       room count, room mix if relevant, event space, event time, contact name,
+       and current booking status.
+     - If a fact is unknown, write it as missing instead of inventing it later.
+  4. Operational evidence:
+     - Relevant SOP/policy rules.
+     - Relevant inventory/readiness/event-space/transport/billing/task facts.
+     - Any data freshness constraint or `DEMO_NOW` assumption if it affects the
+       expected answer.
+  5. Golden promise list:
+     - One row per expected promise/request.
+     - Include `promise_id`, natural-language promise, rule key/category,
+       department, expected final status, whether manager approval is required,
+       missing fields if any, and whether `verifiable` is forbidden.
+  6. Expected evidence and tools:
+     - Required source quote(s) or source message ids.
+     - Required SOP/tool evidence keywords.
+     - Required tool families, such as freshness, SOP, room readiness, event
+       space, inventory, billing, transport, task board, or complaint trace.
+  7. Expected task/approval outcome:
+     - Whether a task should be created.
+     - Expected department, due-time rule, assignee type if relevant, and task
+       status for complaint-trace cases.
+     - Whether the manager should approve, block, or ask for more information.
+  8. Complaint/recovery expectation, only if the case includes a complaint:
+     - Complaint text.
+     - Expected matched promise(s), linked task(s), failure point(s), recovery
+       action, and postmortem/SOP suggestion.
+  9. Edge-case note:
+     - Why this case exists in the eval set, for example missing information,
+       overpromise risk, approval needed, SOP timing violation, conflicting
+       evidence, or complaint root-cause tracing.
+- Suggested skeleton:
+
+```json
+{
+  "case_id": "CASE-002",
+  "title": "Late VIP arrival with upgrade request",
+  "public_safe": true,
+  "reviewed_by": "initials",
+  "messages": [
+    {
+      "message_id": "MSG-CASE-002-001",
+      "source": "sales_email",
+      "sender_role": "corporate booker",
+      "received_at": "2026-07-21T09:30:00Z",
+      "subject": "Executive arrival requests",
+      "body": "..."
+    }
+  ],
+  "booking_facts": {
+    "booking_id": "BKG-CASE-002",
+    "arrival_date": "2026-07-22",
+    "departure_date": "2026-07-24",
+    "arrival_time": "21:30",
+    "rooms": 3,
+    "event_space": null,
+    "status": "confirmed"
+  },
+  "operational_evidence": {
+    "sop_rules": ["..."],
+    "inventory_or_readiness": ["..."],
+    "existing_tasks": []
+  },
+  "golden_promises": [
+    {
+      "promise_id": "P-CASE-002-001",
+      "text": "...",
+      "rule_key": "...",
+      "department": "front_desk",
+      "expected_status": "needs_approval",
+      "approval_required": true,
+      "missing_fields": [],
+      "forbid_verifiable": true,
+      "required_tools": ["retrieve_sop", "check_room_readiness"],
+      "evidence_must_mention": ["manager approval"]
+    }
+  ],
+  "expected_tasks": [],
+  "complaint_trace": null,
+  "edge_case_note": "Tests escalation recall for upgrade-like promises."
+}
+```
 - AI may generate wording variants after the human goldens exist, but AI-created
   variants must not be treated as the authority for correctness.
 - For the hackathon, do not chase a large dataset. A practical target is:
@@ -375,7 +554,7 @@ Preferred implementation:
 Potential files:
 
 - `src/lib/evaluation/metrics.ts`
-- `src/app/api/eval/acme/route.ts`
+- `src/app/api/eval/[booking_id]/route.ts`
 - `scripts/eval-acme.ts`
 
 Potential output:
@@ -431,18 +610,58 @@ Frontend owner can build the UI from these backend outputs:
 
 Gmail:
 
-- thread search results
-- selected/imported thread
-- source badge: `gmail`
-- imported message preview
-- audit trigger
+- `GET /api/intake/gmail/search?q=acme`
+  - configured future response: `{ ok: true, source: "gmail", data:
+    GmailThreadSummary[] }`
+  - current degraded response: `{ ok: false, source: "gmail", status:
+    "not_configured", reason, required_env }`
+- `POST /api/intake/gmail/import { thread_id }`
+  - configured future response: `{ ok: true, source: "gmail", data:
+    IntakeMessage[] }`
+  - current degraded response mirrors search when Gmail OAuth is absent.
+- Use `source: "gmail"` for the source badge when imported messages are present.
+- Use `body_text`, `subject`, `sender`, and `received_at` for imported message
+  preview.
+- Trigger audit with `POST /api/audit/from-intake`.
 
 Metrics:
 
-- compact metric cards
-- pass/fail labels
-- Phoenix trace id/link if present
-- "safety wins" explanation for non-verifiable statuses
+- `GET/POST /api/eval/[booking_id]`
+  - `classification_accuracy`
+  - `approval_compliance`
+  - `unsafe_overpromise_count`
+  - `missing_info_recall`
+  - `human_control_coverage`
+  - `evidence_coverage`
+  - `tool_call_coverage`
+  - `complaint_trace`
+  - `sop_violation_detection`
+  - `arize_trace_present`
+  - `phoenix_trace_id`
+  - `latency_ms`
+  - `manual_lookup_sources_checked`
+  - `cost_estimate_usd`
+  - `business_impact_basis`
+  - `per_promise`
+- Use compact metric cards for the ratio/scalar fields.
+- Use pass/fail labels from `overall_passed` and each `per_promise.*_ok`.
+- Link or display Phoenix trace id only when `arize_trace_present=true`.
+- For non-verifiable statuses, explain them as safety wins only when the metric
+  target expects `cannot_confirm`, `missing_info`, `at_risk`, or
+  `needs_approval`.
+
+Report (Summary/Improvement agent, planned this sprint):
+
+- `GET /api/report`
+  - aggregates from existing data: promise status distribution, overpromises blocked
+    by the gate, task overdue rates by department, recurrence records, sources
+    auto-checked per audit
+  - `analysis_text`: Gemini-written manager-readable summary of the same JSON
+  - every economic field carries a basis label: `measured` / `estimated` /
+    `assumption` — the UI must render the label next to the number
+- Frontend: 2–3 simple charts (CSS bars are fine, no chart library required) + the
+  analysis text. Keep it inside the judge view or a secondary tab — not on the
+  manager's default attention queue (spec §9.0).
 
 Do not require frontend work before backend contracts exist.
 
@@ -496,20 +715,34 @@ npm run typecheck
 npm run build
 ```
 
-If Gmail is implemented:
-
-```bash
-# exact command TBD after OAuth/client setup
-npm run dev
-# open localhost and import a test Gmail thread
-```
-
 If eval script is implemented:
 
 ```bash
-# exact script name TBD
+npm run dev -- --hostname 127.0.0.1
 npm run eval
 ```
+
+Useful local API checks:
+
+```bash
+curl http://127.0.0.1:3000/api/eval/BKG-2026-0718-ACME
+curl "http://127.0.0.1:3000/api/intake/gmail/search?q=acme"
+curl -X POST http://127.0.0.1:3000/api/intake/gmail/import \
+  -H "Content-Type: application/json" \
+  -d "{\"thread_id\":\"demo\"}"
+curl -X POST http://127.0.0.1:3000/api/audit/from-intake \
+  -H "Content-Type: application/json" \
+  -d "{\"body_text\":\"Acme Robotics needs a quiet king room and projector.\",\"source\":\"manual_paste\"}"
+```
+
+Expected local behavior without Gmail OAuth:
+
+- `/api/eval/[booking_id]` returns stable metrics JSON from
+  `evals/goldens.json` and can pass without Gemini or Phoenix credentials.
+- Gmail endpoints return `ok:false`, `status:"not_configured"`, and the required
+  env var list.
+- `/api/audit/from-intake` maps Acme-like content to
+  `BKG-2026-0718-ACME` and returns the normal audit object.
 
 ## 8. Open Questions
 

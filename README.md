@@ -1,5 +1,8 @@
 # StayOps Promise Ledger
 
+> ⚠️ **This README is rewritten last before submission.** Mid-sprint it may lag the code
+> and the spec — for current product behavior, `docs/00-spec.md` is the authority.
+
 **A promise verification and recovery layer for hotel operations — powered by a Gemini agent with deterministic policy guardrails.**
 
 StayOps is **not a guest chatbot and not a task manager**. It is a promise verification and recovery layer. A Gemini agent reads guest-facing promises *before* arrival, autonomously gathers operational evidence with tools, and a deterministic policy layer decides what the hotel can actually commit to — routing only verified or approved actions to teams. When something goes wrong, it traces a complaint back to the exact broken promise and the task that failed.
@@ -116,8 +119,17 @@ npm run dev        # http://localhost:3000
 
 ### 4. Deploy (Cloud Run)
 
+Canonical deployment target:
+
+```text
+GCP project: stayops-498807
+Project number: 165249719568
+Region: us-central1
+Cloud Run web URL: https://stayops-mzcsrz357a-uc.a.run.app
+```
+
 ```bash
-./scripts/deploy-cloud-run.sh   # deploys the app + the ADK agent service and wires them together
+GCP_PROJECT=stayops-498807 ./scripts/deploy-cloud-run.sh
 ```
 
 The script deploys both services from source with Cloud Build, points the ADK service's
@@ -142,17 +154,24 @@ npm run dev          # in one terminal
 npm run eval         # in another
 ```
 
-`scripts/eval.mjs` runs a real audit (`?force=1` bypasses the cache) and scores it against `evals/goldens.json`:
+`scripts/eval.mjs` enumerates every booking in `evals/goldens.json`, runs a real
+audit for each one, and scores the result against the domain-authored golden
+expectations:
 
 ```
-Status accuracy        6/6  (100%)     ← classification correct
-🚨 Overpromise (safety) 0/6  ✅ none    ← never "verifiable" on unsupported data (the key safety metric)
-Approval compliance    6/6  (100%)     ← right items flagged for manager approval
-Agent tool coverage    6/6  (100%)     ← Gemini called the tools each promise needed
-Evidence keyword hits  3/3             ← e.g. projector evidence must mention "12:00"
+Classification accuracy      6/6 (100%)
+Approval compliance          6/6 (100%)
+Unsafe overpromise count     0
+Missing-info recall          2/2 (100%)
+Human-control coverage       2/2 (100%)
+Evidence coverage            6/6 (100%)
+Tool-call coverage           6/6 (100%)
+Overall                      PASS
 ```
 
-To add a new scenario, add one entry to `evals/goldens.json` (expected status, required tools, approval, `forbid_verifiable`, evidence keywords) — the domain expert defines "correct", the agent has to pass.
+To add a new scenario, add one booking entry to `evals/goldens.json` (expected
+status, required tools, approval, `forbid_verifiable`, evidence keywords). The
+domain expert defines "correct"; the script picks the case up automatically.
 
 ## Tool Contracts
 

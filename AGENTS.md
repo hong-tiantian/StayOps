@@ -23,6 +23,21 @@ hotel teams, and traces a complaint back to the exact broken promise.
 
 ---
 
+## Document authority order (team decision, 2026-06-10)
+
+1. `AGENTS.md` — collaboration rules and demo invariants.
+2. **`docs/00-spec.md` — the product authority (第一资料).** If any other document or code
+   conflicts with the spec on product behavior, the spec wins; if the spec itself is
+   wrong, fix the spec first, then the code.
+3. Execution plans (`agent-team-execution-plan.md`, `gmail-metrics-execution-plan.md`) —
+   work logs for their workstreams. Update them to match the spec, not vice versa.
+4. `docs/final-check-manual.md` — submission checklist; always verify it against code.
+
+`README.md` is rewritten **last** before submission (see the marker at its top); do not
+spend effort keeping it current mid-sprint.
+
+---
+
 ## Who this is for (primary persona)
 
 **Primary user = the hotel duty manager / operations lead.** The product's core action is
@@ -39,7 +54,7 @@ an explicit non-goal for this hackathon scope.
 ## Hackathon hard constraints (non-negotiable)
 
 This repo is an entry in the **Google Cloud Rapid Agent Hackathon** (submission deadline
-**2026-06-11 14:00 PT**). To pass Stage One the project MUST:
+**2026-06-11 14:00 PT / 2026-06-12 07:00 GMT+10 Sydney time**). To pass Stage One the project MUST:
 
 - Be built with **Gemini + Google Cloud Agent Builder**. A pure rule engine is not enough.
 - Have a **meaningful integration with one partner MCP** (Arize / Elastic / Fivetran /
@@ -93,6 +108,11 @@ seam, stop and flag it — do not silently edit the other person's files.
 - The **API responses are the contract.** Before changing an API response shape, update
   `types.ts` and tell the other side. Keep example response JSON (fixtures) so the UI can
   be built without running the full backend.
+- **Current-sprint seam contract:** the audit workstream exposes
+  `runPromiseAuditFromMessages(messages)` in `src/lib/classifier.ts` (audit driven by
+  actual message content instead of seeded CSV). The intake workstream must consume this
+  entry point — never re-implement extraction or re-read the seeded ledger from intake
+  code.
 
 ---
 
@@ -114,10 +134,13 @@ change these:
 5. The expected first-pass classification (early check-in→`cannot_confirm`, quiet king→
    `at_risk`, breakfast & projector→`verifiable`, transfer & invoice→`missing_info`) is
    the acceptance target. Don't change classifier behavior so these flip without reason.
+6. **Intake never touches the Acme main flow.** Auto/manual intake creates new
+   bookings/contexts only — it must not write to `BKG-2026-0718-ACME`'s ledger, tasks, or
+   approvals, and must not change the count of its 6 promises.
 
-> The authoritative product/data spec is [docs/00-spec.md](docs/00-spec.md), and the
-> current execution authority for the agent-team realignment is
-> [agent-team-execution-plan.md](agent-team-execution-plan.md). When in doubt, follow them.
+> The product authority is [docs/00-spec.md](docs/00-spec.md) (see "Document authority
+> order" above). Execution plans are work logs for their workstreams. When in doubt,
+> follow the spec.
 
 ---
 

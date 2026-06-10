@@ -16,7 +16,7 @@ if ! command -v gcloud >/dev/null 2>&1; then
 fi
 command -v gcloud >/dev/null 2>&1 || { echo "gcloud not found — install the Google Cloud SDK first."; exit 1; }
 
-PROJECT="${GCP_PROJECT:-project-8b1cd981-640f-41b1-9c6}"
+PROJECT="${GCP_PROJECT:-stayops-498807}"
 REGION="${GCP_REGION:-us-central1}"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 

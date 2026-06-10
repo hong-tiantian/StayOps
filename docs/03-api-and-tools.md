@@ -255,3 +255,18 @@ Produced when a complaint is submitted.
 }
 ```
 
+## Additional Endpoints
+
+These exist alongside the audit contract above. Full field contracts live in
+`gmail-metrics-execution-plan.md` §5 (frontend handoff).
+
+| Endpoint | Purpose |
+| --- | --- |
+| `POST /api/tools/:tool` | Internal tool callback used by the ADK service (thin wrapper over `ToolRunner`; single source of tool logic + data). |
+| `GET /api/intake/gmail/search?q=` | Gmail intake search. Degrades to `{ ok: false, status: "not_configured" }` without OAuth. |
+| `POST /api/intake/gmail/import` | Import a Gmail thread as normalized `IntakeMessage[]`. Same degraded behavior. |
+| `POST /api/audit/from-intake` | Run an audit from intake messages. Target behavior (current sprint): feed actual message content through `runPromiseAuditFromMessages`; never mutate the Acme main flow. |
+| `GET/POST /api/eval/:booking_id` | Demo metrics scored against `evals/goldens.json` (`/api/eval/acme` kept as the Acme alias). |
+| `GET /api/insights` | Phoenix MCP self-review: latest audit trace summary + learning feedback. Observational only. |
+| `GET /api/report` *(planned)* | Summary/Improvement agent aggregation: status distribution, blocked overpromises, overdue rates, recurrence, plus a Gemini-written `analysis_text`. Economic fields carry `measured/estimated/assumption` labels. |
+
