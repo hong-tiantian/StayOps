@@ -24,7 +24,7 @@ export type GmailAdapterResult<T> =
   | {
       ok: false;
       source: "gmail";
-      status: "not_configured" | "not_implemented";
+      status: "not_configured" | "auth_error" | "api_error";
       reason: string;
       required_env: string[];
     };

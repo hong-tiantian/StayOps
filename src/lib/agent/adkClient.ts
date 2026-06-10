@@ -1,5 +1,5 @@
 import { AgentProposal } from "./promiseAgent";
-import { ToolCall } from "../types";
+import { Message, ToolCall } from "../types";
 
 /**
  * Client for the ADK (Google Cloud Agent Builder) agent service.
@@ -11,7 +11,7 @@ import { ToolCall } from "../types";
  * loop, then to the deterministic policy engine, so the demo never breaks.
  *
  * Contract (to align with the ADK service's stage-2 HTTP wiring):
- *   POST {ADK_AGENT_URL}/audit   body: { booking_id }
+ *   POST {ADK_AGENT_URL}/audit   body: { booking_id, messages? }
  *   → { proposals: AgentProposal[], tool_calls?: ToolCall[] }
  * The ADK agent only proposes; the deterministic policy layer still decides.
  */
@@ -25,13 +25,13 @@ export function adkConfigured(): boolean {
   return !!process.env.ADK_AGENT_URL;
 }
 
-export async function runAdkAgent(booking_id: string): Promise<AdkRunResult> {
+export async function runAdkAgent(booking_id: string, messages?: Message[]): Promise<AdkRunResult> {
   const url = process.env.ADK_AGENT_URL;
   if (!url) throw new Error("ADK_AGENT_URL not set");
   const res = await fetch(`${url.replace(/\/$/, "")}/audit`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ booking_id }),
+    body: JSON.stringify({ booking_id, messages }),
   });
   if (!res.ok) throw new Error(`ADK agent error: HTTP ${res.status}`);
   const data = (await res.json()) as { proposals?: AgentProposal[]; tool_calls?: ToolCall[] };

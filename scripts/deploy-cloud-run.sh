@@ -23,6 +23,10 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 # Pull Phoenix config from .env.local (never committed).
 PHOENIX_COLLECTOR_ENDPOINT="$(grep -E '^PHOENIX_COLLECTOR_ENDPOINT=' "$ROOT/.env.local" | cut -d= -f2-)"
 PHOENIX_API_KEY="$(grep -E '^PHOENIX_API_KEY=' "$ROOT/.env.local" | cut -d= -f2-)"
+GMAIL_CLIENT_ID="$(grep -E '^GMAIL_CLIENT_ID=' "$ROOT/.env.local" | cut -d= -f2-)"
+GMAIL_CLIENT_SECRET="$(grep -E '^GMAIL_CLIENT_SECRET=' "$ROOT/.env.local" | cut -d= -f2-)"
+GMAIL_REDIRECT_URI="$(grep -E '^GMAIL_REDIRECT_URI=' "$ROOT/.env.local" | cut -d= -f2-)"
+GMAIL_REFRESH_TOKEN="$(grep -E '^GMAIL_REFRESH_TOKEN=' "$ROOT/.env.local" | cut -d= -f2-)"
 
 echo "==> [0/3] One-time setup: APIs + Cloud Build permissions for the default compute SA ..."
 gcloud services enable run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com \
@@ -38,7 +42,7 @@ gcloud run deploy stayops \
   --project "$PROJECT" --region "$REGION" \
   --allow-unauthenticated \
   --max-instances 1 --memory 1Gi --timeout 300 \
-  --set-env-vars "GOOGLE_GENAI_USE_VERTEXAI=true,GOOGLE_CLOUD_PROJECT=$PROJECT,GOOGLE_CLOUD_LOCATION=global,GEMINI_MODEL=gemini-3.5-flash,PHOENIX_COLLECTOR_ENDPOINT=$PHOENIX_COLLECTOR_ENDPOINT,PHOENIX_API_KEY=$PHOENIX_API_KEY" \
+  --set-env-vars "GOOGLE_GENAI_USE_VERTEXAI=true,GOOGLE_CLOUD_PROJECT=$PROJECT,GOOGLE_CLOUD_LOCATION=global,GEMINI_MODEL=gemini-3.5-flash,PHOENIX_COLLECTOR_ENDPOINT=$PHOENIX_COLLECTOR_ENDPOINT,PHOENIX_API_KEY=$PHOENIX_API_KEY,GMAIL_CLIENT_ID=$GMAIL_CLIENT_ID,GMAIL_CLIENT_SECRET=$GMAIL_CLIENT_SECRET,GMAIL_REDIRECT_URI=$GMAIL_REDIRECT_URI,GMAIL_REFRESH_TOKEN=$GMAIL_REFRESH_TOKEN,GMAIL_OAUTH_SHOW_TOKEN=false" \
   --quiet
 
 APP_URL="$(gcloud run services describe stayops --project "$PROJECT" --region "$REGION" --format 'value(status.url)')"

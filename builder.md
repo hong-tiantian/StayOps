@@ -61,9 +61,9 @@ primary:  Next.js API route ──调用──> ADK Agent (本地已跑通；目
 
 ### 阶段 0 — 配置 GCP　【🟡 收尾，仅差 ADC】
 - [x] 0.1 装 `gcloud` CLI（winget，Cloud SDK 571.0.0，路径 `%LOCALAPPDATA%\Google\Cloud SDK`）
-- [x] 0.2a `gcloud auth login` ✅（账号 `tiantianhong23@gmail.com`）
+- [x] 0.2a `gcloud auth login` ✅（账号 `<your-google-account>`，不要提交个人 Gmail）
 - [ ] 0.2b `gcloud auth application-default login`（**用户待补跑**，ADK 运行时调 Vertex AI 要它）
-- [x] 0.3 建 Project（`stayops-498807`）+ 关联 Billing（`01763A-E0192F-437F75`，billingEnabled=true）
+- [x] 0.3 建 Project（`<your-gcp-project-id>`）+ 关联 Billing（`<your-billing-account-id>`，billingEnabled=true）
 - [x] 0.4 启用 API：aiplatform / run / cloudbuild / artifactregistry ✅；region=`us-central1`
 
 ### 阶段 1 — 本地跑通 ADK-TS agent　【🟡 进行中】
@@ -109,12 +109,12 @@ primary:  Next.js API route ──调用──> ADK Agent (本地已跑通；目
 
 | 项 | 值 |
 |----|----|
-| Project ID | `stayops-498807`（默认 project 已设） |
-| Project number | `165249719568` |
+| Project ID | `<your-gcp-project-id>`（默认 project 已设） |
+| Project number | `<your-gcp-project-number>` |
 | Region | `us-central1`（ai/region + run/region 已设） |
-| Cloud Run web URL | `https://stayops-mzcsrz357a-uc.a.run.app` |
-| Billing | `01763A-E0192F-437F75`（已关联，billingEnabled=true） |
-| 登录账号 | `tiantianhong23@gmail.com` |
+| Cloud Run web URL | `<your-cloud-run-url>` |
+| Billing | `<your-billing-account-id>`（已关联，billingEnabled=true） |
+| 登录账号 | `<your-google-account>` |
 | gcloud 路径 | `C:\Users\Lenovo\AppData\Local\Google\Cloud SDK\google-cloud-sdk\bin` |
 | Node | v22.20.0 |
 | Agent endpoint | _（阶段 2 后填）_ |
@@ -166,7 +166,7 @@ npm install
 ```
 
 **② Google Cloud 准入（关键，二选一）：**
-- **方案甲（推荐，最省事）：** 项目所有者把队友的 Google 账号加进 GCP 项目 `stayops-498807`
+- **方案甲（推荐，最省事）：** 项目所有者把队友的 Google 账号加进 GCP 项目 `<your-gcp-project-id>`
   （Console → IAM → 授予 `Vertex AI User` + `Cloud Run Admin`）。队友 `.env` 不用改。
 - **方案乙：** 队友用自己的 GCP 项目 —— 自建 project、开 billing、`gcloud services enable aiplatform.googleapis.com run.googleapis.com ...`，
   然后把 `agent/promise_agent/.env` 的 `GOOGLE_CLOUD_PROJECT` 改成自己的。

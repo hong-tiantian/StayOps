@@ -1,4 +1,4 @@
-import { loadReservations, loadPromiseLedger, getOpsTasks } from "./data";
+import { loadPromiseLedger, getOpsTasks } from "./data";
 import { ToolRunner } from "./tools";
 import { allFreshness } from "./freshness";
 import { runPromiseAgent, AgentProposal } from "./agent/promiseAgent";
@@ -7,36 +7,36 @@ import { isFastTrack } from "./learning/feedbackStore";
 import { adkConfigured, runAdkAgent } from "./agent/adkClient";
 import { analyzeBookingInfo } from "./infoAnalysis";
 import { planTasks } from "./taskPlanner";
-import { AgentTraceStage, Department, ExtraItem, InfoAnalysis, PromiseDecision, PromiseStatus, PromiseType, Reservation, TaskPlan, ToolCall } from "./types";
+import {
+  AgentTraceStage,
+  Department,
+  ExtraItem,
+  InfoAnalysis,
+  Message,
+  PromiseDecision,
+  PromiseStatus,
+  PromiseType,
+  Reservation,
+  TaskPlan,
+  ToolCall,
+} from "./types";
 
 /**
  * Promise audit orchestration.
  *
- * Two paths share one deterministic policy (`rulePromiseStatus`) so they can
- * never disagree on the final executable status:
- *
- *   runAgentAudit  — Gemini function-calling agent extracts promises and gathers
- *                    evidence; the policy layer adjudicates the final status.
- *   runDeterministicAudit — offline fallback when Gemini is unavailable.
- *
- * `runPromiseAudit` tries the agent first and falls back automatically.
+ * LLM/ADK reads the actual messages and proposes extracted promises. The
+ * deterministic policy remains the final safety gate, but the ledger is no
+ * longer the source of which promises exist.
  */
 
-const SOURCE_QUOTES: Record<string, string> = {
-  "P-001": "Some executives may arrive around 11am, so early check-in would be helpful.",
-  "P-002": "Please place our VP in a quiet king room away from elevators if possible.",
-  "P-003": "We also need gluten-free breakfast for two attendees.",
-  "P-004": "a projector in the meeting room",
-  "P-005": "airport transfer from MAD",
-  "P-006": "a company invoice",
-};
+const DEFAULT_INTAKE_BOOKING_ID = "INTAKE-UNMAPPED";
 
 function linkedTaskFor(promise_id: string): string | undefined {
   return getOpsTasks().find((t) => t.source_promise_id === promise_id)?.task_id;
 }
 
 function splitTypes(raw: string): PromiseType[] {
-  return raw.split(";").map((t) => t.trim()) as PromiseType[];
+  return raw.split(";").map((t) => t.trim()).filter(Boolean) as PromiseType[];
 }
 
 export interface AuditResult {
@@ -56,7 +56,7 @@ export interface AuditResult {
   }>;
 }
 
-interface LedgerRow {
+interface DecisionSeed {
   promise_id: string;
   booking_id: string;
   promise_text: string;
@@ -70,9 +70,165 @@ interface LedgerRow {
   category: string;
 }
 
-/** Build a PromiseDecision from a ledger row + an authoritative status verdict. */
+const DEFAULT_SEEDS: Record<string, Omit<DecisionSeed, "promise_id" | "booking_id" | "promise_text" | "category">> = {
+  early_check_in: {
+    promise_type: "request_noted",
+    owner_department: "front_desk",
+    evidence: "Guest requested arrival before standard check-in.",
+    risk_reason: "Room readiness is uncertain before official check-in.",
+    recommended_action: "Reply that early arrival is noted but cannot be guaranteed",
+    approval_required: true,
+    execution_state: "not_created",
+  },
+  quiet_room: {
+    promise_type: "preference;risk_sensitive_request",
+    owner_department: "front_desk",
+    evidence: "Guest requested a quiet room constraint.",
+    risk_reason: "Limited quiet-zone inventory and room blocking required.",
+    recommended_action: "Manager approval and room-blocking task",
+    approval_required: true,
+    execution_state: "task_created",
+  },
+  gluten_free_breakfast: {
+    promise_type: "operational_requirement",
+    owner_department: "fb",
+    evidence: "Guest requested gluten-free breakfast.",
+    risk_reason: "Deadline sensitive",
+    recommended_action: "Create F&B notification task",
+    approval_required: false,
+    execution_state: "completed",
+  },
+  projector_setup: {
+    promise_type: "operational_requirement",
+    owner_department: "events",
+    evidence: "Guest requested meeting-room AV equipment.",
+    risk_reason: "Setup deadline must precede meeting start.",
+    recommended_action: "Create events setup task due before meeting start",
+    approval_required: false,
+    execution_state: "task_created",
+  },
+  airport_transfer: {
+    promise_type: "missing_info_request;operational_requirement",
+    owner_department: "concierge",
+    evidence: "Guest requested airport transport.",
+    risk_reason: "Cannot book transfer without required flight and contact details",
+    recommended_action: "Ask guest for flight number, arrival time, passenger count, phone",
+    approval_required: false,
+    execution_state: "follow_up_created",
+  },
+  company_invoice: {
+    promise_type: "commercial_requirement",
+    owner_department: "sales",
+    evidence: "Guest requested company billing.",
+    risk_reason: "Cannot issue company invoice without required billing details",
+    recommended_action: "Ask company for billing details",
+    approval_required: false,
+    execution_state: "follow_up_created",
+  },
+  upgrade: {
+    promise_type: "preference",
+    owner_department: "front_desk",
+    evidence: "Guest requested an upgrade.",
+    risk_reason: "Free upgrade is a giveaway requiring manager discretion",
+    recommended_action: "Escalate to manager for upgrade decision",
+    approval_required: true,
+    execution_state: "not_created",
+  },
+  high_floor: {
+    promise_type: "preference",
+    owner_department: "front_desk",
+    evidence: "Guest requested a high-floor room.",
+    risk_reason: "High-floor quiet rooms are subject to availability",
+    recommended_action: "Check high-floor readiness and assign a suitable room",
+    approval_required: false,
+    execution_state: "not_created",
+  },
+  parking: {
+    promise_type: "missing_info_request",
+    owner_department: "front_desk",
+    evidence: "Guest asked about parking.",
+    risk_reason: "Cannot reserve parking without arrival and vehicle details",
+    recommended_action: "Ask guest for vehicle plate and arrival time",
+    approval_required: false,
+    execution_state: "follow_up_created",
+  },
+  long_stay_discount: {
+    promise_type: "commercial_requirement",
+    owner_department: "sales",
+    evidence: "Guest requested a long-stay discount.",
+    risk_reason: "Discount is a revenue giveaway needing manager discretion",
+    recommended_action: "Escalate to revenue manager with occupancy forecast",
+    approval_required: true,
+    execution_state: "not_created",
+  },
+  lost_and_found: {
+    promise_type: "request_noted",
+    owner_department: "front_desk",
+    evidence: "Guest requested a lost-item search.",
+    risk_reason: "Item must be located before any confirmation",
+    recommended_action: "Front desk checks log and storage; dispatch housekeeping if needed",
+    approval_required: false,
+    execution_state: "not_created",
+  },
+  maintenance: {
+    promise_type: "operational_requirement",
+    owner_department: "maintenance",
+    evidence: "Guest reported a maintenance issue.",
+    risk_reason: "Subject to technician availability",
+    recommended_action: "Create maintenance ticket for on-call technician",
+    approval_required: false,
+    execution_state: "not_created",
+  },
+};
+
+function seedForExtraItem(extraItem: ExtraItem, bookingId: string): DecisionSeed {
+  const ruleKey = extraItem.rule_key ?? "unknown";
+  const existing = loadPromiseLedger().find((p) => p.booking_id === bookingId && p.category === ruleKey);
+  if (existing) {
+    return {
+      promise_id: existing.promise_id,
+      booking_id: existing.booking_id,
+      promise_text: extraItem.text || existing.promise_text,
+      promise_type: existing.promise_type,
+      owner_department: existing.owner_department,
+      evidence: existing.evidence,
+      risk_reason: existing.risk_reason,
+      recommended_action: existing.recommended_action,
+      approval_required: existing.approval_required,
+      execution_state: existing.execution_state,
+      category: existing.category,
+    };
+  }
+
+  const fallback = DEFAULT_SEEDS[ruleKey] ?? {
+    promise_type: "request_noted",
+    owner_department: "manager",
+    evidence: "Guest message contains an extra item that needs review.",
+    risk_reason: "No deterministic verifier is available for this item.",
+    recommended_action: "Manager reviews before making any commitment.",
+    approval_required: true,
+    execution_state: "not_created",
+  };
+
+  return {
+    promise_id: extraItem.item_id,
+    booking_id: bookingId,
+    promise_text: extraItem.text,
+    category: ruleKey,
+    ...fallback,
+  };
+}
+
+function applyBasicInfoGate(status: PromiseStatus, infoAnalysis: InfoAnalysis): PromiseStatus {
+  if (infoAnalysis.basic_info_status === "complete") return status;
+  if (status !== "verifiable") return status;
+  if (infoAnalysis.basic_info_status === "conflict") return "conflict";
+  if (infoAnalysis.basic_info_status === "cannot_confirm") return "cannot_confirm";
+  return "missing_info";
+}
+
 function buildDecision(
-  row: LedgerRow,
+  row: DecisionSeed,
   status: PromiseStatus,
   evidence: string[],
   tool_calls: ToolCall[],
@@ -80,12 +236,11 @@ function buildDecision(
   extraItem?: ExtraItem,
   overruled?: boolean
 ): PromiseDecision {
-  // Learning reflux: if managers have repeatedly approved this promise, surface
-  // it as a fast-track suggestion on the next audit (status still set by policy).
   const fast = isFastTrack(row.promise_id);
   const finalEvidence = fast
-    ? [...evidence, "💡 Learned: managers have fast-tracked this promise before — suggest pre-approval."]
+    ? [...evidence, "Learned: managers have fast-tracked this promise before; suggest pre-approval."]
     : evidence;
+
   return {
     promise_id: row.promise_id,
     booking_id: row.booking_id,
@@ -93,8 +248,8 @@ function buildDecision(
     promise_type: splitTypes(row.promise_type),
     status,
     owner_department: row.owner_department as Department,
-    source_message_id: extraItem?.source_message_id || "MSG-001",
-    source_quote: proposal?.source_quote || extraItem?.source_quote || SOURCE_QUOTES[row.promise_id],
+    source_message_id: extraItem?.source_message_id || proposal?.source_message_id,
+    source_quote: proposal?.source_quote || extraItem?.source_quote,
     evidence: finalEvidence,
     risk_reason: row.risk_reason,
     recommended_action: row.recommended_action,
@@ -118,56 +273,61 @@ function freshnessSummary() {
   }));
 }
 
-/**
- * Agent path: Gemini autonomously extracts promises and gathers evidence; the
- * deterministic policy layer then decides the final status for each known promise.
- */
-async function runAgentAudit(booking_id: string): Promise<AuditResult> {
+async function runAgentAudit(booking_id: string, messageOverride?: Message[]): Promise<AuditResult> {
   const intake = new ToolRunner();
   const reservation = intake.get_reservation(booking_id);
-  const messages = intake.search_messages(booking_id);
-
+  const messages = messageOverride ?? intake.search_messages(booking_id);
   const agent = await runPromiseAgent(messages, reservation);
-  return assembleFromProposals(booking_id, reservation, agent.proposals, "gemini", agent.runner.calls, intake.calls);
+  return assembleFromProposals(booking_id, reservation, messages, agent.proposals, "gemini", agent.runner.calls, intake.calls);
 }
 
-/** Turn agent proposals (from ADK or the in-app Gemini loop) into policy-adjudicated decisions. */
 function assembleFromProposals(
   booking_id: string,
   reservation: Reservation | null,
+  messages: Message[],
   proposals: AgentProposal[],
   source: "gemini" | "adk",
   agentToolCalls: ToolCall[],
   intakeCalls: ToolCall[]
 ): AuditResult {
-  const infoAnalysis = analyzeBookingInfo(booking_id, reservation);
+  const infoAnalysis = analyzeBookingInfo(booking_id, reservation, messages, proposals);
   const extraByRuleKey = new Map(infoAnalysis.extra_items.map((item) => [item.rule_key, item]));
   const proposalByRuleKey = new Map<string, AgentProposal>();
-  for (const p of proposals) {
-    const ruleKey = alignPromiseRuleKey(p.promise_text);
-    if (ruleKey && !proposalByRuleKey.has(ruleKey)) proposalByRuleKey.set(ruleKey, p);
+
+  for (const proposal of proposals) {
+    const ruleKey = proposal.rule_key || alignPromiseRuleKey(`${proposal.promise_text}\n${proposal.source_quote ?? ""}`);
+    if (ruleKey && !proposalByRuleKey.has(ruleKey)) proposalByRuleKey.set(ruleKey, proposal);
   }
 
-  const ledger = loadPromiseLedger().filter((p) => p.booking_id === booking_id);
   const policyCalls: ToolCall[] = [];
-  const decisions: PromiseDecision[] = ledger.map((row) => {
-    const ruleKey = row.category;
+  const decisions = infoAnalysis.extra_items.map((extraItem) => {
+    const row = seedForExtraItem(extraItem, booking_id);
+    const ruleKey = extraItem.rule_key ?? row.category;
     const proposal = proposalByRuleKey.get(ruleKey);
     const policyRunner = new ToolRunner();
     const verdict = rulePromiseStatus(ruleKey, policyRunner, reservation);
     policyCalls.push(...policyRunner.calls);
-    const { overruled } = reconcileStatus(verdict.status, proposal?.proposed_status);
 
+    const gatedStatus = applyBasicInfoGate(verdict.status, infoAnalysis);
+    const { overruled } = reconcileStatus(gatedStatus, proposal?.proposed_status);
     const evidence = [row.evidence, ...verdict.evidence];
+
+    if (gatedStatus !== verdict.status) {
+      evidence.push(
+        `Basic-info gate: ${infoAnalysis.basic_info_status}; missing fields: ${infoAnalysis.missing_basic_fields.join(", ") || "none"}.`
+      );
+    }
+
     if (proposal) {
       if (overruled) {
         evidence.push(
-          `Policy guardrail: agent proposed "${proposal.proposed_status}" → policy set "${verdict.status}" from fresh evidence.`
+          `Policy guardrail: agent proposed "${proposal.proposed_status}" -> policy set "${gatedStatus}" from fresh evidence.`
         );
       }
-      for (const e of proposal.evidence ?? []) evidence.push(`AI: ${e}`);
+      for (const item of proposal.evidence ?? []) evidence.push(`AI: ${item}`);
     }
-    return buildDecision(row, verdict.status, evidence, policyRunner.calls, proposal, extraByRuleKey.get(ruleKey), overruled);
+
+    return buildDecision(row, gatedStatus, evidence, policyRunner.calls, proposal, extraByRuleKey.get(ruleKey), overruled);
   });
   const taskPlan = planTasks(infoAnalysis, decisions);
 
@@ -183,39 +343,38 @@ function assembleFromProposals(
   };
 }
 
-/** Agent Builder (ADK) path: orchestration runs in the ADK service; policy still decides. */
-async function runAdkAudit(booking_id: string): Promise<AuditResult> {
+async function runAdkAudit(booking_id: string, messageOverride?: Message[]): Promise<AuditResult> {
   const intake = new ToolRunner();
   const reservation = intake.get_reservation(booking_id);
-  intake.search_messages(booking_id);
-  const adk = await runAdkAgent(booking_id);
-  return assembleFromProposals(booking_id, reservation, adk.proposals, "adk", adk.tool_calls, intake.calls);
+  const messages = messageOverride ?? intake.search_messages(booking_id);
+  const adk = await runAdkAgent(booking_id, messages);
+  return assembleFromProposals(booking_id, reservation, messages, adk.proposals, "adk", adk.tool_calls, intake.calls);
 }
 
-/** Offline fallback: pure deterministic audit using the same policy verdicts. */
-export function runDeterministicAudit(booking_id: string): AuditResult {
+export function runDeterministicAudit(booking_id: string, messageOverride?: Message[]): AuditResult {
   const intake = new ToolRunner();
   const reservation = intake.get_reservation(booking_id);
-  intake.search_messages(booking_id);
-  const infoAnalysis = analyzeBookingInfo(booking_id, reservation);
+  const messages = messageOverride ?? intake.search_messages(booking_id);
+  const infoAnalysis = analyzeBookingInfo(booking_id, reservation, messages);
   const extraByRuleKey = new Map(infoAnalysis.extra_items.map((item) => [item.rule_key, item]));
-
-  const ledger = loadPromiseLedger().filter((p) => p.booking_id === booking_id);
   const allCalls: ToolCall[] = [...intake.calls];
 
-  const decisions: PromiseDecision[] = ledger.map((row) => {
-    const ruleKey = row.category;
+  const decisions = infoAnalysis.extra_items.map((extraItem) => {
+    const row = seedForExtraItem(extraItem, booking_id);
+    const ruleKey = extraItem.rule_key ?? row.category;
     const policyRunner = new ToolRunner();
     const verdict = rulePromiseStatus(ruleKey, policyRunner, reservation);
     allCalls.push(...policyRunner.calls);
-    return buildDecision(
-      row,
-      verdict.status,
-      [row.evidence, ...verdict.evidence],
-      policyRunner.calls,
-      undefined,
-      extraByRuleKey.get(ruleKey)
-    );
+
+    const gatedStatus = applyBasicInfoGate(verdict.status, infoAnalysis);
+    const evidence = [row.evidence, ...verdict.evidence];
+    if (gatedStatus !== verdict.status) {
+      evidence.push(
+        `Basic-info gate: ${infoAnalysis.basic_info_status}; missing fields: ${infoAnalysis.missing_basic_fields.join(", ") || "none"}.`
+      );
+    }
+
+    return buildDecision(row, gatedStatus, evidence, policyRunner.calls, undefined, extraByRuleKey.get(ruleKey));
   });
   const taskPlan = planTasks(infoAnalysis, decisions);
 
@@ -286,29 +445,18 @@ function buildAgentTrace(
   ];
 }
 
-/** Caches successful agent audits so repeated demo runs return instantly. */
 const auditCache = new Map<string, AuditResult>();
 
-/** Clear cached audits — called when demo state changes (e.g. stale toggle). */
 export function clearAuditCache(): void {
   auditCache.clear();
 }
 
-/**
- * Entry point. Returns a cached agent result when available; otherwise tries the
- * Gemini agent and, on any failure (no credentials, network, rate limit, bad
- * output), falls back to the deterministic audit so the demo never breaks.
- * Pass `{ force: true }` to bypass the cache and re-run the agent.
- */
-export async function runPromiseAudit(
-  booking_id: string,
-  opts?: { force?: boolean }
-): Promise<AuditResult> {
+export async function runPromiseAudit(booking_id: string, opts?: { force?: boolean }): Promise<AuditResult> {
   if (!opts?.force) {
     const cached = auditCache.get(booking_id);
     if (cached) return cached;
   }
-  // 1. Agent Builder (ADK) — primary orchestration when ADK_AGENT_URL is wired.
+
   if (adkConfigured()) {
     try {
       const result = await runAdkAudit(booking_id);
@@ -318,13 +466,57 @@ export async function runPromiseAudit(
       console.warn("[StayOps] ADK (Agent Builder) unavailable, falling back to in-app loop:", err);
     }
   }
-  // 2. In-app Gemini loop, then 3. deterministic policy — so the demo never breaks.
+
   try {
     const result = await runAgentAudit(booking_id);
-    auditCache.set(booking_id, result); // cache only successful agent runs
+    auditCache.set(booking_id, result);
     return result;
   } catch (err) {
     console.warn("[StayOps] Gemini agent unavailable, using deterministic fallback:", err);
     return runDeterministicAudit(booking_id);
+  }
+}
+
+type MessageLike = Message | {
+  body_text?: string;
+  body?: string;
+  booking_id?: string;
+  channel?: string;
+  source?: string;
+  sender?: string;
+  received_at?: string;
+  subject?: string;
+  message_id?: string;
+  message_type?: string;
+};
+
+export async function runPromiseAuditFromMessages(
+  messages: MessageLike[],
+  opts?: { booking_id?: string }
+): Promise<AuditResult> {
+  const bookingId = opts?.booking_id ?? messages.find((message) => message.booking_id)?.booking_id ?? DEFAULT_INTAKE_BOOKING_ID;
+  const normalized: Message[] = messages.map((message, index) => ({
+    message_id: message.message_id ?? `INTAKE-MSG-${String(index + 1).padStart(3, "0")}`,
+    booking_id: bookingId,
+    channel: message.channel ?? ("source" in message ? message.source : undefined) ?? "manual_paste",
+    sender: message.sender ?? "unknown",
+    received_at: message.received_at ?? new Date().toISOString(),
+    message_type: message.message_type ?? "booking_request",
+    body: message.body ?? ("body_text" in message ? message.body_text : undefined) ?? "",
+  }));
+
+  if (adkConfigured()) {
+    try {
+      return await runAdkAudit(bookingId, normalized);
+    } catch (err) {
+      console.warn("[StayOps] ADK (Agent Builder) unavailable for intake messages, falling back to in-app loop:", err);
+    }
+  }
+
+  try {
+    return await runAgentAudit(bookingId, normalized);
+  } catch (err) {
+    console.warn("[StayOps] Gemini agent unavailable for intake messages, using deterministic fallback:", err);
+    return runDeterministicAudit(bookingId, normalized);
   }
 }

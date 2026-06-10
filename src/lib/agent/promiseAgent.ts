@@ -22,6 +22,8 @@ const MAX_STEPS = 4;
 export interface AgentProposal {
   promise_text: string;
   source_quote: string;
+  source_message_id?: string;
+  rule_key?: string;
   promise_type: string[];
   owner_department: string;
   proposed_status: string;
@@ -69,6 +71,8 @@ const PROPOSAL_SCHEMA = {
         properties: {
           promise_text: { type: Type.STRING },
           source_quote: { type: Type.STRING },
+          source_message_id: { type: Type.STRING },
+          rule_key: { type: Type.STRING },
           promise_type: { type: Type.ARRAY, items: { type: Type.STRING } },
           owner_department: { type: Type.STRING },
           proposed_status: { type: Type.STRING },
@@ -77,7 +81,7 @@ const PROPOSAL_SCHEMA = {
           approval_required: { type: Type.BOOLEAN },
           evidence: { type: Type.ARRAY, items: { type: Type.STRING } },
         },
-        required: ["promise_text", "proposed_status", "owner_department"],
+        required: ["promise_text", "source_quote", "rule_key", "proposed_status", "owner_department"],
       },
     },
   },
@@ -179,7 +183,11 @@ export async function runPromiseAgent(
             "Now output the final audit as JSON. Use promise_type values from " +
             "{confirmed_commitment, request_noted, preference, operational_requirement, " +
             "commercial_requirement, missing_info_request, risk_sensitive_request} and " +
-            "owner_department from {front_desk, housekeeping, fb, events, sales, concierge, manager}.",
+            "owner_department from {front_desk, housekeeping, fb, events, sales, concierge, manager}. " +
+            "For each promise include the exact source_quote from the guest/internal message and " +
+            "a rule_key from {early_check_in, quiet_room, gluten_free_breakfast, projector_setup, " +
+            "airport_transfer, company_invoice, upgrade, high_floor, parking, long_stay_discount, " +
+            "lost_and_found, maintenance}; if none fits, use other and do not force it into a wrong key.",
         },
       ],
     });

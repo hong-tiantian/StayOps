@@ -18,35 +18,44 @@ export interface GmailMessage {
 }
 
 const REQUIRED_ENV = ["GMAIL_CLIENT_ID", "GMAIL_CLIENT_SECRET", "GMAIL_REDIRECT_URI", "GMAIL_REFRESH_TOKEN"];
+const GMAIL_API = "https://gmail.googleapis.com/gmail/v1/users/me";
 
 export function gmailReadonlyConfigured(): boolean {
   return REQUIRED_ENV.every((name) => Boolean(process.env[name]));
 }
 
-export async function searchGmailThreads(_query: string): Promise<GmailAdapterResult<GmailThreadSummary[]>> {
+export async function searchGmailThreads(query: string): Promise<GmailAdapterResult<GmailThreadSummary[]>> {
   if (!gmailReadonlyConfigured()) {
     return gmailUnavailable();
   }
-  return {
-    ok: false,
-    source: "gmail",
-    status: "not_implemented",
-    reason: "Gmail OAuth credentials are present, but live Gmail API fetch is intentionally gated until the demo mailbox is confirmed.",
-    required_env: REQUIRED_ENV,
-  };
+  try {
+    const accessToken = await getGmailAccessToken();
+    const search = new URLSearchParams({
+      q: query || "[STAYOPS DEMO]",
+      maxResults: "10",
+    });
+    const listed = await gmailFetch<{ threads?: Array<{ id: string }> }>(`${GMAIL_API}/threads?${search}`, accessToken);
+    const summaries = await Promise.all((listed.threads ?? []).map((thread) => loadThreadSummary(thread.id, accessToken)));
+    return { ok: true, source: "gmail", data: summaries };
+  } catch (err) {
+    return gmailFailure(err);
+  }
 }
 
-export async function loadGmailThread(_threadId: string): Promise<GmailAdapterResult<IntakeMessage[]>> {
+export async function loadGmailThread(threadId: string): Promise<GmailAdapterResult<IntakeMessage[]>> {
   if (!gmailReadonlyConfigured()) {
     return gmailUnavailable();
   }
-  return {
-    ok: false,
-    source: "gmail",
-    status: "not_implemented",
-    reason: "Gmail OAuth credentials are present, but live Gmail API import is intentionally gated until the demo mailbox is confirmed.",
-    required_env: REQUIRED_ENV,
-  };
+  try {
+    const accessToken = await getGmailAccessToken();
+    const thread = await gmailFetch<{ messages?: GmailMessage[] }>(
+      `${GMAIL_API}/threads/${encodeURIComponent(threadId)}?format=full`,
+      accessToken
+    );
+    return { ok: true, source: "gmail", data: (thread.messages ?? []).map(normalizeGmailMessage) };
+  } catch (err) {
+    return gmailFailure(err);
+  }
 }
 
 export function normalizeGmailMessage(raw: GmailMessage): IntakeMessage {
@@ -79,6 +88,69 @@ function gmailUnavailable(): GmailAdapterResult<never> {
     required_env: REQUIRED_ENV,
   };
 }
+
+async function getGmailAccessToken(): Promise<string> {
+  const response = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      client_id: process.env.GMAIL_CLIENT_ID ?? "",
+      client_secret: process.env.GMAIL_CLIENT_SECRET ?? "",
+      refresh_token: process.env.GMAIL_REFRESH_TOKEN ?? "",
+      grant_type: "refresh_token",
+    }),
+  });
+  const data = (await response.json().catch(() => ({}))) as { access_token?: string; error?: string; error_description?: string };
+  if (!response.ok || !data.access_token) {
+    throw new GmailAuthError(data.error_description ?? data.error ?? `oauth_token_http_${response.status}`);
+  }
+  return data.access_token;
+}
+
+async function loadThreadSummary(threadId: string, accessToken: string): Promise<GmailThreadSummary> {
+  const params = new URLSearchParams({ format: "metadata" });
+  for (const headerName of ["Subject", "From", "Date"]) {
+    params.append("metadataHeaders", headerName);
+  }
+  const thread = await gmailFetch<{ id: string; snippet?: string; messages?: GmailMessage[] }>(
+    `${GMAIL_API}/threads/${encodeURIComponent(threadId)}?${params}`,
+    accessToken
+  );
+  const latest = [...(thread.messages ?? [])].sort((a, b) => Number(b.internalDate ?? 0) - Number(a.internalDate ?? 0))[0];
+  const headers = latest?.payload?.headers ?? [];
+  return {
+    thread_id: thread.id,
+    subject: header(headers, "subject"),
+    sender: header(headers, "from"),
+    received_at: latest?.internalDate ? new Date(Number(latest.internalDate)).toISOString() : header(headers, "date"),
+    snippet: thread.snippet ?? latest?.snippet,
+  };
+}
+
+async function gmailFetch<T>(url: string, accessToken: string): Promise<T> {
+  const response = await fetch(url, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  const data = (await response.json().catch(() => ({}))) as T & { error?: { message?: string } };
+  if (!response.ok) {
+    throw new GmailApiError(data.error?.message ?? `gmail_http_${response.status}`);
+  }
+  return data;
+}
+
+function gmailFailure(err: unknown): GmailAdapterResult<never> {
+  const isAuth = err instanceof GmailAuthError;
+  return {
+    ok: false,
+    source: "gmail",
+    status: isAuth ? "auth_error" : "api_error",
+    reason: err instanceof Error ? err.message : "Gmail API request failed.",
+    required_env: REQUIRED_ENV,
+  };
+}
+
+class GmailAuthError extends Error {}
+class GmailApiError extends Error {}
 
 function header(headers: GmailHeader[], name: string): string | undefined {
   return headers.find((h) => h.name.toLowerCase() === name.toLowerCase())?.value;
