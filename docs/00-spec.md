@@ -8,13 +8,22 @@
 StayOps Promise Ledger is an operational agent for boutique hotels that audits guest-facing promises before arrival, routes verified actions to hotel teams, and traces complaints back to the exact broken promise.
 
 **Core idea:**
-The agent does not simply convert guest messages into tasks. It first determines whether each promise or request (!!note) is executable, risky, missing information, conflicting, or requiring approval. After manager approval, it creates department tasks. If a complaint happens, it traces the failure across the promise ledger, approval log, and task board.
+The agent does not simply convert guest messages into tasks. It first determines whether each promise or request is executable, risky, missing information, conflicting, or requiring approval. After manager approval, it creates department tasks. If a complaint happens, it traces the failure across the promise ledger, approval log, and task board.
 
 **Demo thesis:**
 The product has two connected value propositions:
 
 1. **Reduce complaints before they happen** by preventing overpromising and catching missing operational handoffs.
 2. **Handle complaints after they happen** by tracing the broken promise and generating a recovery plan.
+
+### 1.1 Terminology
+
+| Term | Meaning |
+| --- | --- |
+| **request** | An intake whose content stays within the basic-info checklist (§3.1). If every basic field is present and matches hotel records, the agent may auto-confirm it (§4.3). |
+| **promise** | Any extra item beyond basic info that the hotel would be committing to: preference, operational requirement, exception, or commercial item. Promises require verification before any guarantee. |
+| **self-verifiable promise** | A promise the agent can verify from system data (inventory, readiness, SOP, event spaces, billing, vendors). Once verified fresh, it may be confirmed in a reply. |
+| **human-gated promise** | A promise whose answer does not exist in system data, or which needs discretion/approval. Always routed to the manager. |
 
 ---
 
@@ -78,7 +87,7 @@ After manager approval, the agent creates:
 Second demo act: complaint handling.
 
 
-Guest complaint:(!!note：当下complaint或者后来complaint？)
+Guest complaint (received after the meeting has started):
 
 > “The VP was promised a quiet king room, but was placed near the elevator, and the projector was not ready when the meeting started.”
 
@@ -116,9 +125,16 @@ The Info Analysis layer must separate:
 * **Extra info**: special requests, preferences, operational requirements, commercial items,
   exceptions, or commitments that may require verification and handoff.
 
-Basic info is scope-dependent. A corporate group event needs company, dates, room count,
-room mix, contact, billing owner, meeting room, and meeting baseline. An individual stay
-has a smaller checklist.
+Basic info is scope-dependent. Explicit checklists per intake scope:
+
+| Scope | Required basic fields |
+| --- | --- |
+| `corporate_group_event` | company name, primary contact **+ reply channel**, arrival/departure dates, arrival time, room count, room mix, billing owner, meeting room, meeting time |
+| `corporate_group` / `group_stay` | company/group name, primary contact + reply channel, arrival/departure dates, arrival time, room count, room mix, billing owner |
+| `individual_stay` | guest name, contact + reply channel, arrival/departure dates, arrival time, guest count, room type, payment/billing basis |
+
+A **reply channel** (email address or phone) is always required: the agent must know where
+to send follow-up questions or confirmations (§4.3).
 
 ### 3.2 Basic Info Status
 
@@ -145,6 +161,10 @@ Extra items use three separate concepts:
 
 Current CSV `category` is a compatibility field for `rule_key`. It is not the full
 business taxonomy.
+
+The domain list is capped at roughly this size on purpose. New scenarios go into an
+existing domain with a free-text `subtype` (fallback `other`) — they do not get new
+domain values. See §3.7.
 
 Required domains:
 
@@ -193,6 +213,7 @@ Task/handoff state is separate from verification:
 
 ```text
 not_needed
+auto_handled
 not_created
 follow_up_created
 approval_requested
@@ -202,6 +223,10 @@ in_progress
 completed
 failed
 ```
+
+`auto_handled` records that the agent completed the item itself (e.g. an auto-sent reply
+or auto-confirmed request). It creates a visible log entry in the manager's auto-handled
+lane (§3.6) — never an open task that is born "completed".
 
 Service result is post-execution evaluation:
 
@@ -217,13 +242,81 @@ Service level belongs here, not in initial request classification. A good review
 complaint is only an outcome signal; it does not prove that a verified/approved promise
 was fulfilled.
 
----
+### 3.6 Intake Triage And Manager Attention
 
-## 4. Agent Workflow
+Intake can start from an **auto-watched demo mailbox** (read-only polling; a simulated
+inbox fallback yields the identical UX), a manual paste, or seeded CSV. New intake never
+modifies the fixed Acme demo booking; it creates its own booking context.
+
+The agent triages every intake on two axes — **clarity × importance** — the way an
+experienced duty manager would:
+
+| | Clear | Unclear (missing fields, suspected typo, contradiction) |
+| --- | --- | --- |
+| **Routine** | Auto-handle: extract, verify self-verifiable items, auto-reply (§4.3); log in the *auto-handled* lane. | Agent auto-asks the guest targeted questions (questions are commitment-free, §4.3). |
+| **Important / urgent** | *Review suggested* lane: agent has handled it, but it is surfaced for a manager scan. | *Needs attention* lane: the manager decides; the agent prepares options and evidence. |
+
+Suspected typos and internal contradictions are detected by the LLM and mapped to the
+existing taxonomy: contradictory basic info → `basic_info_status: conflict`; contradictory
+extras → verification status `conflict`; suspected typos → a targeted clarifying question.
+
+**Priority score** — the LLM extracts the facts; a transparent weighted formula ranks them
+(the manager must always be able to see *why* an item is on top):
+
+* verification risk status (`at_risk` / `conflict` rank high)
+* VIP involvement
+* order size (rooms / value)
+* SOP deadline proximity (per-promise deadline such as F&B D-1 17:00 — not just arrival time)
+* waiting time in queue (aging)
+* recurrence / guest history (§4.4)
+* an active complaint on the booking always ranks first
+* (optional) stale data sources affecting the item
+
+The three lanes are filter states of ONE list, not separate boards — see §9.0.
+
+### 3.7 Schema Altitude Rules (anti-over-specification)
+
+Real hotel operations are far more varied than any fixed taxonomy (late check-ins, VCC
+payments, OTA-vs-direct invoice rules, upgrade negotiations, shift handovers, …). The
+system absorbs that variety by keeping classification coarse and the safety fallback
+conservative — NOT by enumerating scenarios.
+
+Litmus test for any proposed enum: *"when the next hotel or the next scenario arrives,
+does this enum need a new value?"* If yes, it is data, not schema — demote it to free
+text or an SOP row.
+
+Rules (binding for all coding agents):
+
+1. **No new domain enum values.** New scenarios use an existing domain + free-text
+   `subtype`; fallback is `other`.
+2. **No bespoke verifier functions for new scenarios.** The 12 existing rule verifiers
+   stay (they protect the demo). Anything new goes through the generic verification
+   path: freshness → `retrieve_sop` → missing-field check → approval requirement →
+   conservative status. When uncertain, output `needs_approval` or `cannot_confirm` —
+   never guess.
+3. **Conditional business rules live in SOP data, not code branches.** "OTA bookings:
+   generate invoice but do not send; direct bookings: send at checkout" is an SOP row,
+   not an `if`.
+4. **Missing fields split into `blocking` vs `deferrable`.** Blocking fields (e.g.
+   payment card for collection) gate execution. Deferrable fields (e.g. company name —
+   real front desks log "Up to date" and ask at check-in) allow a placeholder plus a
+   low-priority follow-up; they do not stall the flow.
+5. **Strictness lives only in gates and invariants:** the 6 verification statuses, the
+   reply gate (§4.3), the freshness gate (§5), financial invariants (balance zero;
+   receipt + invoice generated even when not sent), and the demo invariants. Everything
+   else stays loose.
+6. **Tool interfaces are named by intent** (`check_room_readiness`,
+   `get_booking_payment_info`), never by system mechanics (which portal, which login,
+   which POS). System mechanics belong to future adapters.
+7. **Cross-booking side effects exist in reality** (upgrading one guest may require
+   moving another — a new commitment to a third party). Out of scope to implement, but
+   schemas must not structurally forbid a task or promise referencing another booking
+   later.
 
 ### 4.1 Pre-arrival Promise Audit
 
-1. User selects booking `BKG-2026-0718-ACME`.
+1. User selects booking `BKG-2026-0718-ACME` (or a new intake arrives via the
+   auto-watched demo mailbox / manual paste and is triaged per §3.6).
 2. Info Analysis reads messages and reservation context.
 3. Info Analysis determines intake scope and basic info completeness.
 4. If basic info is incomplete, the agent asks targeted follow-up questions.
@@ -244,6 +337,53 @@ was fulfilled.
 6. Manager approves recovery.
 7. Agent creates recovery tasks and guest reply draft.
 8. Agent logs postmortem suggestion.
+
+### 4.3 Reply Policy And Auto-Send Gate
+
+The agent drafts guest replies and may send them — but sending is governed by a
+**deterministic reply gate**, exactly like promise execution. The LLM writes and
+classifies the reply; the gate makes the send/hold call.
+
+| Reply content | Gate decision |
+| --- | --- |
+| Acknowledgement ("we received your booking request") | auto-send allowed |
+| Targeted questions about missing/unclear fields (incl. suspected typos, contradictions) | auto-send allowed |
+| Restating facts that are `verifiable` on fresh data, or manager-approved | auto-send allowed |
+| **Any guarantee about an item that is not `verifiable`/approved** (`at_risk`, `missing_info`, `conflict`, `needs_approval`, `cannot_confirm`) | **BLOCKED** — draft only; the manager reviews and sends |
+
+Rules:
+
+* Every commitment sentence in an auto-sent reply must map to a `verifiable` or approved
+  item. One unverified commitment blocks the whole reply.
+* Questions and acknowledgements are commitment-free, so the agent may always auto-ask for
+  missing basic info or clarification — this is the "auto-reply" path.
+* For the hackathon demo, "send" is **simulated** inside the StayOps thread view and
+  labeled `auto-sent (simulated)`. Gmail write scopes are deliberately not requested; the
+  gate is the product, transport is plumbing.
+* Every auto-sent reply is logged as `auto_handled` and visible in the manager's
+  auto-handled lane.
+
+### 4.4 Complaint Loop, Recovery Promises, And Recurrence
+
+Complaint handling is a loop, not a single pass — but each pass through the loop
+**escalates instead of repeating**, so the loop is never redundant:
+
+1. **Recovery actions are themselves promises** ("we will move the VP", "technician on the
+   way"). They enter the SAME pipeline — verification → approval (if risky) → task →
+   completion tracking — linked to the original promise and complaint. No separate
+   machinery exists for recovery.
+2. **`service_result` (§3.5) closes the loop**: `fulfilled` / `failed` / `recovered` /
+   `exceeded` is recorded when recovery tasks complete.
+3. **Recurrence escalation:**
+
+| Occurrence | Behavior |
+| --- | --- |
+| 1st complaint on a promise/room/rule_key | Standard recovery flow; agent-handleable parts run automatically. |
+| Recurrence within the recurrence window (same room / rule_key) | Forced into the *needs attention* lane with an **upgraded remedy** (room move / compensation) — never the same fix again. |
+| Pattern (N occurrences in a period) | Routed to the Summary/Improvement agent as an asset/SOP issue (e.g. "room 402 HVAC failed 3× this month — recommend taking it out of inventory"). |
+
+The "no data → human" rule (§8.1) is the loop's brake: "why did the fix not hold" has no
+answer in system data, so a recurrence always reaches a human.
 
 ---
 
@@ -801,6 +941,9 @@ The agent must classify with evidence. It cannot assign a status without citing 
 
 Rules:
 
+* **If the answer to a question does not exist in hotel system data, the item MUST route
+  to a human.** Agents never guess beyond the database. (This single rule is the safety
+  model in one sentence; it also brakes the complaint loop, §4.4.)
 * Use `verifiable` only when all required operational data is fresh and supports execution.
 * Use `at_risk` when execution is possible but constrained by inventory, staffing, timing, or preference uncertainty.
 * Use `missing_info` when required external information is absent.
@@ -951,6 +1094,22 @@ Visual direction:
 * Map view should show room position and risk state.
 * Task board should use kanban columns.
 * Timeline should show promise lifecycle and failure trace.
+
+### 9.0 Manager Attention Queue (business-view simplicity rule)
+
+The attention queue (§3.6) **replaces whole-table scanning; it must not add density** to
+the manager view:
+
+* The default manager view shows ONLY the *needs attention* lane — typically 3–7 items,
+  ranked by the priority score. The top item is always the next action.
+* Auto-handled items collapse into a single count line ("12 auto-handled today ✓"),
+  expandable on demand.
+* The three lanes (*auto-handled* / *review suggested* / *needs attention*) are filter
+  chips on ONE list, never three tables.
+* Each queue row shows only: who, what, why it was flagged, and 1–2 one-click actions.
+  Everything else lives in the detail drawer.
+* Full density (tool calls, traces, eval metrics) belongs to the judge/developer view
+  only.
 
 ### 9.1 Top Navigation
 
@@ -1307,6 +1466,15 @@ GET  /api/tasks?booking_id=
 POST /api/complaints/trace
 GET  /api/freshness
 GET  /api/map/:booking_id
+
+# Intake / eval / observability (current sprint)
+GET  /api/intake/gmail/search?q=
+POST /api/intake/gmail/import
+POST /api/audit/from-intake
+GET|POST /api/eval/acme
+GET  /api/insights
+GET  /api/report            # Summary agent aggregation (planned)
+POST /api/tools/:tool       # internal tool callback for the ADK service
 ```
 
 ---
@@ -1499,6 +1667,20 @@ The board should answer whether a live request is safe to confirm, needs manager
 is missing information, or cannot be confirmed. Do not build this before the core Info
 Analysis, Verification, Safety Gate, and Task Planning model is stable.
 
+## 13.7 Intake, Reply, And Loop Acceptance (current sprint)
+
+* **Auto-intake:** a new email appearing in the demo mailbox (or simulated inbox) shows up
+  in the intake queue without copy-paste, and the audit runs on its **actual content**.
+* **Acme protection:** no intake path modifies the fixed Acme main flow (its 6 promises,
+  `TASK-102` due 14:00, `TASK-103` open).
+* **Reply gate:** a reply containing a guarantee about a non-verifiable item is blocked
+  into a draft; questions/acknowledgements auto-send (simulated) and are logged as
+  `auto_handled`.
+* **Attention queue:** the default manager view shows only *needs attention* items plus an
+  auto-handled count line.
+* **Recurrence:** a second complaint on the same room/rule_key inside the window reaches
+  the manager queue with an upgraded remedy, not a repeat of the first fix.
+
 ## 14. Non-Goals
 
 Do not build:
@@ -1512,6 +1694,8 @@ Do not build:
 * Generic chatbot
 * Generic task manager
 * Generic complaint apology generator
+* Real email sending (Gmail write scopes) — demo replies are simulated behind the reply gate (§4.3)
+* Mailbox-wide automation beyond the single designated demo mailbox
 
 The demo must stay focused on:
 

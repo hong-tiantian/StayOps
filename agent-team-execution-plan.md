@@ -41,6 +41,11 @@ Known conflict themes to resolve:
 
 Do not treat `docs/00-spec.md` as automatically authoritative where it conflicts with this plan; it is one of the files that must be updated.
 
+> **2026-06-10 update (team decision) — the rule above is REVERSED going forward:**
+> `docs/00-spec.md` is now the product authority (第一资料). Where this plan conflicts
+> with the current spec, update THIS plan. This file remains the work log for the
+> realignment workstream; see "Document authority order" in `AGENTS.md`.
+
 ## 0. Live Execution Status
 
 Use these markers:
@@ -984,9 +989,11 @@ Do not remove all demo hard-coding blindly. Some hard-coded data protects the de
 
 ### 8.3 Evaluation hard-coding
 
-- `evals/goldens.json` only covers Acme.
-- `scripts/eval.mjs` defaults to Acme.
-- Existing eval proves demo safety/status correctness, not general taxonomy quality.
+- `evals/goldens.json` currently only covers Acme.
+- `scripts/eval.mjs` enumerates every booking in `evals/goldens.json`; because
+  the golden file currently has one booking, the effective eval target is Acme.
+- Existing eval proves demo safety/status correctness for golden bookings, not
+  general taxonomy quality.
 
 ## 9. Execution Plan
 
