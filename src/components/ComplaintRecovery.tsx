@@ -10,9 +10,9 @@ const DEFAULT_COMPLAINT =
   "The VP was promised a quiet king room, but was placed near the elevator, and the projector was not ready when the meeting started.";
 
 const URGENCY_STYLE: Record<string, string> = {
-  immediate: "bg-red-100 text-red-700",
-  same_day: "bg-amber-100 text-amber-700",
-  next_day: "bg-blue-100 text-blue-700",
+  immediate: "border border-rose-300/30 bg-rose-400/12 text-rose-200",
+  same_day: "border border-amber-300/30 bg-amber-400/12 text-amber-200",
+  next_day: "border border-sky-300/30 bg-sky-400/12 text-sky-200",
 };
 
 export default function ComplaintRecovery({
@@ -32,113 +32,117 @@ export default function ComplaintRecovery({
   const [text, setText] = useState(DEFAULT_COMPLAINT);
 
   return (
-    <div className="grid gap-4 lg:grid-cols-2">
-      <div className="space-y-4">
-        <div className="card lift p-4">
-          <h3 className="mb-2 text-sm font-semibold text-gray-900">{t.recovery.complaint}</h3>
-          <textarea
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            rows={4}
-            className="w-full resize-none rounded-lg border border-gray-200 p-2 text-sm text-gray-700 focus:border-slate-400 focus:outline-none"
-          />
-          <button
-            onClick={() => onTrace(text)}
-            disabled={busy}
-            className="mt-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
-          >
-            {busy ? t.recovery.tracing : t.recovery.trace}
-          </button>
-        </div>
-
-        {trace && (
-          <>
-            <Card title={t.recovery.matched}>
-              <ul className="space-y-1 text-sm">
-                {trace.matched_promises.map((m) => (
-                  <li key={m.promise_id} className="flex items-center gap-2">
-                    <span className="rounded bg-slate-200 px-1.5 py-0.5 font-mono text-[10px]">
-                      {m.promise_id}
-                    </span>
-                    <span className="text-gray-700">{m.promise_text}</span>
-                  </li>
-                ))}
-              </ul>
-            </Card>
-
-            <Card title={t.recovery.broken}>
-              <div className="space-y-2">
-                {trace.matched_promises.map((m) => (
-                  <div
-                    key={m.promise_id}
-                    className="rounded-lg border border-red-200 bg-red-50 p-2 text-xs"
-                  >
-                    <div className="font-medium text-red-800">
-                      {m.promise_id} — {failureTypeLabel(m.failure_type)}
-                    </div>
-                    <div className="text-red-600">
-                      {t.recovery.where}: {failurePointLabel(m.failure_point)}
-                    </div>
-                    <div className="mt-1 text-red-700">{m.root_cause}</div>
-                    {m.linked_task_id && (
-                      <div className="mt-1 text-[10px] text-red-500">
-                        {t.recovery.linkedTask}: {m.linked_task_id}
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </Card>
-          </>
-        )}
+    <div className="space-y-4">
+      <div>
+        <h1 className="t-title">{lang === "zh" ? "投诉恢复" : "Complaint Recovery"}</h1>
+        <p className="t-caption mt-0.5">{lang === "zh" ? "把投诉追溯到具体断裂的承诺，并给出恢复方案" : "Trace a complaint back to the exact broken promise and recover"}</p>
       </div>
 
-      <div className="space-y-4">
-        {trace ? (
-          <>
-            <Card title={t.recovery.actions}>
-              <ol className="space-y-2 text-sm">
-                {trace.recovery_plan.map((p, i) => (
-                  <li key={i} className="flex items-start gap-2">
-                    <span className="mt-0.5 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-600">
-                      {p.department}
-                    </span>
-                    <span className="flex-1 text-gray-700">{p.action}</span>
-                    <span
-                      className={`rounded px-1.5 py-0.5 text-[10px] ${
-                        URGENCY_STYLE[p.urgency] ?? "bg-gray-100"
-                      }`}
-                    >
-                      {p.urgency}
-                    </span>
-                  </li>
-                ))}
-              </ol>
-            </Card>
-
-            <Card title={t.recovery.reply}>
-              <p className="rounded-lg bg-gray-50 p-3 text-sm leading-relaxed text-gray-700">
-                {trace.guest_reply_draft}
-              </p>
-            </Card>
-
-            <Card title={t.recovery.postmortem}>
-              <ul className="list-disc space-y-1 pl-4 text-sm text-gray-700">
-                {trace.postmortem_suggestions.map((s, i) => (
-                  <li key={i}>{s}</li>
-                ))}
-              </ul>
-            </Card>
-
-            <Card title={t.recovery.tools}>
-              <ToolCallLog calls={toolCalls} dense />
-            </Card>
-          </>
-        ) : (
-          <div className="rounded-xl border border-dashed border-gray-300 bg-white p-10 text-center text-sm text-gray-400">
-            {t.recovery.empty}
+      <div className="grid gap-4 lg:grid-cols-2">
+        <div className="space-y-4">
+          <div className="glass p-5">
+            <h3 className="t-label mb-3">{t.recovery.complaint}</h3>
+            <textarea
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              rows={4}
+              className="w-full resize-none rounded-xl border border-white/10 bg-white/[0.03] p-3.5 text-[13.5px] leading-relaxed text-white/85 placeholder-white/30 focus:border-white/25 focus:outline-none"
+            />
+            <button
+              onClick={() => onTrace(text)}
+              disabled={busy}
+              className="btn btn-danger mt-2.5 disabled:opacity-50"
+            >
+              {busy ? t.recovery.tracing : t.recovery.trace}
+            </button>
           </div>
-        )}
+
+          {trace && (
+            <>
+              <Card title={t.recovery.matched}>
+                <ul className="space-y-2">
+                  {trace.matched_promises.map((m) => (
+                    <li key={m.promise_id} className="flex items-center gap-2.5">
+                      <span className="tnum rounded-md border border-white/10 bg-white/[0.04] px-2 py-0.5 font-mono text-[11px] text-white/55">
+                        {m.promise_id}
+                      </span>
+                      <span className="text-[13.5px] text-white/80">{m.promise_text}</span>
+                    </li>
+                  ))}
+                </ul>
+              </Card>
+
+              <Card title={t.recovery.broken}>
+                <div className="space-y-2.5">
+                  {trace.matched_promises.map((m) => (
+                    <div
+                      key={m.promise_id}
+                      className="status-edge rounded-xl bg-white/[0.03] p-3.5 pl-5"
+                      style={{ "--edge": "251 113 133" } as React.CSSProperties}
+                    >
+                      <div className="text-[13.5px] font-semibold text-rose-200">
+                        {m.promise_id} — {failureTypeLabel(m.failure_type)}
+                      </div>
+                      <div className="t-caption mt-0.5">
+                        {t.recovery.where}: {failurePointLabel(m.failure_point)}
+                      </div>
+                      <div className="t-body mt-1">{m.root_cause}</div>
+                      {m.linked_task_id && (
+                        <div className="tnum mt-1.5 font-mono text-[11px] text-white/38">
+                          {t.recovery.linkedTask}: {m.linked_task_id}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            </>
+          )}
+        </div>
+
+        <div className="space-y-4">
+          {trace ? (
+            <>
+              <Card title={t.recovery.actions}>
+                <ol className="space-y-2.5">
+                  {trace.recovery_plan.map((p, i) => (
+                    <li key={i} className="flex items-start gap-2.5">
+                      <span className="mt-0.5 rounded-md border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[11px] text-white/55">
+                        {p.department.replace(/_/g, " ")}
+                      </span>
+                      <span className="flex-1 text-[13.5px] leading-relaxed text-white/80">{p.action}</span>
+                      <span className={`rounded-md px-2 py-0.5 text-[11px] font-medium ${URGENCY_STYLE[p.urgency] ?? "border border-white/10 bg-white/5 text-white/55"}`}>
+                        {p.urgency}
+                      </span>
+                    </li>
+                  ))}
+                </ol>
+              </Card>
+
+              <Card title={t.recovery.reply}>
+                <p className="rounded-xl border border-white/[0.06] bg-white/[0.03] p-4 text-[13.5px] leading-relaxed text-white/80">
+                  {trace.guest_reply_draft}
+                </p>
+              </Card>
+
+              <Card title={t.recovery.postmortem}>
+                <ul className="list-disc space-y-1.5 pl-5 text-[13.5px] leading-relaxed text-white/80">
+                  {trace.postmortem_suggestions.map((s, i) => (
+                    <li key={i}>{s}</li>
+                  ))}
+                </ul>
+              </Card>
+
+              <Card title={t.recovery.tools}>
+                <ToolCallLog calls={toolCalls} dense />
+              </Card>
+            </>
+          ) : (
+            <div className="t-caption grid h-48 place-items-center rounded-[20px] border border-dashed border-white/12 bg-white/[0.02]">
+              {t.recovery.empty}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -146,8 +150,8 @@ export default function ComplaintRecovery({
 
 function Card({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="card lift p-4">
-      <h3 className="mb-2 text-sm font-semibold text-gray-900">{title}</h3>
+    <div className="glass p-5">
+      <h3 className="t-label mb-3">{title}</h3>
       {children}
     </div>
   );

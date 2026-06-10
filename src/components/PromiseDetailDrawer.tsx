@@ -1,9 +1,9 @@
 "use client";
 
+import { AnimatePresence, motion } from "framer-motion";
 import { PromiseDecision, RecoveryTrace } from "@/lib/types";
 import StatusBadge from "./StatusBadge";
-import ToolCallLog from "./ToolCallLog";
-import { failurePointLabel, failureTypeLabel } from "@/lib/humanize";
+import { describeCall, failurePointLabel, failureTypeLabel, toolIcon, toolLabel } from "@/lib/humanize";
 import { Lang, ui } from "@/lib/i18n";
 
 const DETAIL = {
@@ -56,10 +56,8 @@ const DETAIL = {
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div>
-      <h4 className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-gray-400">
-        {title}
-      </h4>
-      <div className="text-sm text-gray-700">{children}</div>
+      <h4 className="t-label mb-2">{title}</h4>
+      <div className="text-[13.5px] leading-relaxed text-white/80">{children}</div>
     </div>
   );
 }
@@ -81,177 +79,199 @@ export default function PromiseDetailDrawer({
   onClose: () => void;
   lang: Lang;
 }) {
-  if (!decision) return null;
   const t = DETAIL[lang];
   const common = ui[lang];
-  const isApproved = approved.has(decision.promise_id);
-  const fresh = freshnessByPromise[decision.promise_id] ?? [];
-  const matched = trace?.matched_promises.find((m) => m.promise_id === decision.promise_id);
 
   return (
-    <div className="fixed inset-0 z-40 flex justify-end">
-      <div className="absolute inset-0 bg-black/20" onClick={onClose} />
-      <aside className="relative z-50 h-full w-full max-w-md overflow-y-auto border-l border-gray-200 bg-white shadow-2xl">
-        <div className="sticky top-0 flex items-start justify-between gap-2 border-b border-gray-100 bg-white px-4 py-3">
-          <div>
-            <div className="font-mono text-[10px] text-gray-400">{decision.promise_id}</div>
-            <h3 className="text-base font-semibold text-gray-900">{decision.promise_text}</h3>
-            <div className="mt-1">
-              <StatusBadge status={decision.status} lang={lang} />
-            </div>
-          </div>
-          <button
+    <AnimatePresence>
+      {decision && (
+        <div className="fixed inset-0 z-50 flex justify-end">
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.25 }}
+            className="absolute inset-0 bg-black/55 backdrop-blur-sm"
             onClick={onClose}
-            className="rounded-md p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+          />
+          <motion.aside
+            initial={{ x: "100%" }}
+            animate={{ x: 0 }}
+            exit={{ x: "100%" }}
+            transition={{ type: "spring", damping: 30, stiffness: 280 }}
+            className="glass-shell relative z-10 m-2 h-[calc(100%-16px)] w-full max-w-md overflow-y-auto rounded-[28px]"
           >
-            ✕
-          </button>
-        </div>
-
-        <div className="space-y-4 px-4 py-4">
-          <Section title={t.sourceQuote}>
-            <blockquote className="border-l-2 border-gray-300 pl-3 italic text-gray-600">
-              “{decision.source_quote}”
-              <span className="ml-1 not-italic text-[11px] text-gray-400">
-                ({decision.source_message_id})
-              </span>
-            </blockquote>
-          </Section>
-
-          <Section title={t.promiseType}>
-            <div className="flex flex-wrap gap-1">
-              {decision.promise_type.map((t) => (
-                <span
-                  key={t}
-                  className="rounded bg-slate-100 px-1.5 py-0.5 text-[11px] text-slate-600"
-                >
-                  {t}
-                </span>
-              ))}
-            </div>
-          </Section>
-
-          <Section title={t.freshness}>
-            <div className="flex flex-wrap gap-1.5">
-              {fresh.map((f) => (
-                <span
-                  key={f.source_name}
-                  className={`rounded px-1.5 py-0.5 text-[10px] ${
-                    f.freshness_status === "fresh"
-                      ? "bg-green-100 text-green-700"
-                      : "bg-red-100 text-red-700"
-                  }`}
-                >
-                  {f.source_name}: {f.freshness_status}
-                </span>
-              ))}
-              {fresh.length === 0 && <span className="text-xs text-gray-400">—</span>}
-            </div>
-          </Section>
-
-          <Section title={t.safetyGate}>
-            {decision.agent_proposed_status ? (
-              <div
-                className={`rounded-lg border p-2.5 text-xs ${
-                  decision.policy_overruled
-                    ? "border-amber-300 bg-amber-50 text-amber-900"
-                    : "border-green-200 bg-green-50 text-green-800"
-                }`}
+            <div className="sticky top-0 z-10 flex items-start justify-between gap-2 border-b border-white/8 bg-white/[0.04] px-5 py-4 backdrop-blur-2xl">
+              <div className="min-w-0">
+                <div className="font-mono text-[10px] text-white/40">{decision.promise_id}</div>
+                <h3 className="mt-0.5 text-base font-semibold leading-snug text-white">{decision.promise_text}</h3>
+                <div className="mt-2">
+                  <StatusBadge status={decision.status} lang={lang} />
+                </div>
+              </div>
+              <button
+                onClick={onClose}
+                className="grid h-8 w-8 shrink-0 place-items-center rounded-full border border-white/12 bg-white/5 text-white/60 transition hover:bg-white/12 hover:text-white"
               >
-                <div className="flex items-center gap-2">
-                  <span className="rounded bg-white/70 px-1.5 py-0.5 font-mono">
-                    AI: {decision.agent_proposed_status}
-                  </span>
-                  <span>→</span>
-                  <span className="rounded bg-white/70 px-1.5 py-0.5 font-mono font-semibold">
-                    {decision.status}
-                  </span>
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-5 px-5 py-5">
+              <Section title={t.sourceQuote}>
+                <blockquote className="rounded-2xl border-l-2 border-cyan-300/50 bg-white/[0.04] px-3 py-2 text-sm italic text-white/70">
+                  “{decision.source_quote}”
+                  <span className="ml-1 not-italic text-[10px] text-white/35">({decision.source_message_id})</span>
+                </blockquote>
+              </Section>
+
+              <Section title={t.promiseType}>
+                <div className="flex flex-wrap gap-1.5">
+                  {decision.promise_type.map((pt) => (
+                    <span key={pt} className="glass-inset rounded-lg px-2 py-0.5 text-[11px] text-white/70">
+                      {pt.replace(/_/g, " ")}
+                    </span>
+                  ))}
                 </div>
-                <p className="mt-1.5">
-                  {decision.policy_overruled ? `⚖️ ${t.gateOverruled}` : `✓ ${t.gateAgreed}`}
-                </p>
-              </div>
-            ) : (
-              <span className="text-xs text-gray-400">{t.gateRulesOnly}</span>
-            )}
-          </Section>
+              </Section>
 
-          <Section title={t.evidence}>
-            <ul className="list-disc space-y-1 pl-4 text-sm text-gray-600">
-              {decision.evidence.map((e, i) => (
-                <li key={i}>{e}</li>
-              ))}
-            </ul>
-          </Section>
-
-          <Section title={t.risk}>{decision.risk_reason}</Section>
-
-          <Section title={t.action}>{decision.recommended_action}</Section>
-
-          <Section title={t.approval}>
-            <div className="flex items-center gap-2">
-              {decision.approval_required ? (
-                isApproved ? (
-                  <span className="rounded-full bg-purple-100 px-2 py-0.5 text-xs font-medium text-purple-800">
-                    {t.approvedBy}
-                  </span>
+              <Section title={t.safetyGate}>
+                {decision.agent_proposed_status ? (
+                  <div
+                    className={
+                      decision.policy_overruled
+                        ? "rounded-2xl border border-amber-300/30 bg-amber-400/10 p-3 text-xs text-amber-100"
+                        : "rounded-2xl border border-emerald-300/30 bg-emerald-400/10 p-3 text-xs text-emerald-100"
+                    }
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="rounded bg-white/10 px-1.5 py-0.5 font-mono">AI: {decision.agent_proposed_status}</span>
+                      <span>→</span>
+                      <span className="rounded bg-white/10 px-1.5 py-0.5 font-mono font-semibold">{decision.status}</span>
+                    </div>
+                    <p className="mt-1.5">{decision.policy_overruled ? `⚖️ ${t.gateOverruled}` : `✓ ${t.gateAgreed}`}</p>
+                  </div>
                 ) : (
-                  <>
-                    <span className="text-xs text-gray-500">{t.requires}</span>
-                    <button
-                      onClick={() => onApprove(decision.promise_id)}
-                      className="rounded-md bg-purple-600 px-2 py-1 text-[11px] font-medium text-white hover:bg-purple-700"
+                  <span className="text-xs text-white/40">{t.gateRulesOnly}</span>
+                )}
+              </Section>
+
+              <Section title={t.freshness}>
+                <div className="flex flex-wrap gap-1.5">
+                  {(freshnessByPromise[decision.promise_id] ?? []).map((f) => (
+                    <span
+                      key={f.source_name}
+                      className={
+                        f.freshness_status === "fresh"
+                          ? "rounded-lg border border-emerald-300/25 bg-emerald-400/10 px-2 py-0.5 text-[10px] text-emerald-200"
+                          : "rounded-lg border border-rose-300/25 bg-rose-400/10 px-2 py-0.5 text-[10px] text-rose-200"
+                      }
                     >
-                      {common.ledger.approve}
-                    </button>
-                  </>
-                )
-              ) : (
-                <span className="text-xs text-gray-500">{t.noApproval}</span>
-              )}
+                      {f.source_name}: {f.freshness_status}
+                    </span>
+                  ))}
+                  {(freshnessByPromise[decision.promise_id] ?? []).length === 0 && (
+                    <span className="text-xs text-white/35">—</span>
+                  )}
+                </div>
+              </Section>
+
+              <Section title={t.evidence}>
+                <ul className="space-y-1.5">
+                  {decision.evidence.map((e, i) => (
+                    <li key={i} className="glass-inset rounded-lg px-3 py-1.5 text-[12px] leading-5 text-white/70">
+                      {e}
+                    </li>
+                  ))}
+                </ul>
+              </Section>
+
+              <Section title={t.risk}>
+                <p className="text-[13px] leading-5 text-white/70">{decision.risk_reason}</p>
+              </Section>
+
+              <Section title={t.action}>
+                <p className="text-[13px] leading-5 text-white/70">{decision.recommended_action}</p>
+              </Section>
+
+              <Section title={t.approval}>
+                <div className="flex items-center gap-2">
+                  {decision.approval_required ? (
+                    approved.has(decision.promise_id) ? (
+                      <span className="rounded-full border border-violet-300/30 bg-violet-400/12 px-2.5 py-0.5 text-xs font-medium text-violet-100">
+                        {t.approvedBy}
+                      </span>
+                    ) : (
+                      <>
+                        <span className="text-xs text-white/50">{t.requires}</span>
+                        <button
+                          onClick={() => onApprove(decision.promise_id)}
+                          className="rounded-xl bg-amber-500 px-3 py-1.5 text-[11px] font-semibold text-slate-950 transition active:scale-95"
+                        >
+                          {common.ledger.approve}
+                        </button>
+                      </>
+                    )
+                  ) : (
+                    <span className="text-xs text-white/50">{t.noApproval}</span>
+                  )}
+                </div>
+              </Section>
+
+              <Section title={t.execution}>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="glass-inset rounded-lg px-2 py-0.5 text-xs text-white/70">{decision.execution_state}</span>
+                  {decision.linked_task_id && (
+                    <span className="rounded-lg border border-blue-300/25 bg-blue-400/10 px-2 py-0.5 font-mono text-[10px] text-blue-200">
+                      {decision.linked_task_id}
+                    </span>
+                  )}
+                </div>
+              </Section>
+
+              {(() => {
+                const matched = trace?.matched_promises.find((m) => m.promise_id === decision.promise_id);
+                if (!matched) return null;
+                return (
+                  <div className="rounded-2xl border border-rose-300/30 bg-rose-400/10 p-3">
+                    <h4 className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-rose-200">
+                      {t.complaintTrace}
+                    </h4>
+                    <div className="space-y-1 text-[13px] text-rose-100">
+                      <div>
+                        <span className="font-semibold">{t.wentWrong}:</span> {failureTypeLabel(matched.failure_type)}
+                      </div>
+                      <div>
+                        <span className="font-semibold">{t.broke}:</span> {failurePointLabel(matched.failure_point)}
+                      </div>
+                      <div>
+                        <span className="font-semibold">{t.rootCause}:</span> {matched.root_cause}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              <Section title={t.tools}>
+                <div className="space-y-1.5">
+                  {decision.tool_calls.map((c, i) => (
+                    <div key={i} className="flex items-start gap-2.5 rounded-xl border border-white/8 bg-white/[0.03] px-3 py-2">
+                      <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-white/8 text-sm">
+                        {toolIcon(c.tool_name)}
+                      </span>
+                      <div className="min-w-0">
+                        <div className="text-[12px] font-medium text-white/85">{toolLabel(c.tool_name)}</div>
+                        <div className="text-[10px] leading-4 text-white/45">{describeCall(c)}</div>
+                      </div>
+                    </div>
+                  ))}
+                  {decision.tool_calls.length === 0 && <span className="text-xs text-white/35">—</span>}
+                </div>
+              </Section>
             </div>
-          </Section>
-
-          <Section title={t.execution}>
-            <span className="rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-700">
-              {decision.execution_state}
-            </span>
-            {decision.linked_task_id && (
-              <span className="ml-2 rounded bg-blue-100 px-1.5 py-0.5 font-mono text-[10px] text-blue-800">
-                {decision.linked_task_id}
-              </span>
-            )}
-          </Section>
-
-          {matched && (
-            <div className="rounded-lg border border-red-200 bg-red-50 p-3">
-              <h4 className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-red-500">
-                {t.complaintTrace}
-              </h4>
-              <div className="space-y-1 text-sm text-red-800">
-                <div>
-                  <span className="font-medium">{t.wentWrong}:</span>{" "}
-                  {failureTypeLabel(matched.failure_type)}
-                </div>
-                <div>
-                  <span className="font-medium">{t.broke}:</span>{" "}
-                  {failurePointLabel(matched.failure_point)}
-                  <span className="ml-1 font-mono text-[9px] text-rose-300">
-                    {matched.failure_point}
-                  </span>
-                </div>
-                <div>
-                  <span className="font-medium">{t.rootCause}:</span> {matched.root_cause}
-                </div>
-              </div>
-            </div>
-          )}
-
-          <Section title={t.tools}>
-            <ToolCallLog calls={decision.tool_calls} dense />
-          </Section>
+          </motion.aside>
         </div>
-      </aside>
-    </div>
+      )}
+    </AnimatePresence>
   );
 }
