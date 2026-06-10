@@ -11,22 +11,15 @@ hotel teams, and traces a complaint back to the exact broken promise.
 
 ---
 
-## ⚠️ OPEN DECISIONS — resolve these before deep work (TEAM ACTION)
+## Submission decisions (resolved)
 
-These are intentionally unfinished. Fill them in, then delete this notice.
-
-- 🟢 **Partner bucket chosen: Arize.** The project direction is Arize/Phoenix:
-  trace Gemini reasoning, tool calls, policy guardrails, and manager feedback so
-  every promise decision is auditable. Fivetran is no longer the submission partner.
-- 🟡 **Google Cloud Agent Builder / ADK cloud submission path not done yet.** The current
-  code has a local ADK service path (`agent/promise_agent/`) that becomes the primary
-  orchestration path when `ADK_AGENT_URL` is configured, plus a Gemini custom ReAct fallback
-  and deterministic policy fallback. Cloud Run deployment, final submission docs, and Arize
-  hardening are still pending.
-- 🟡 **Primary persona** is set to *duty manager / operations lead* (see below).
-  Confirm with the teammate who has hotel experience.
-- 🟡 **LICENSE copyright line** says "StayOps Promise Ledger contributors". Replace with
-  the team members' real/legal names before final submission (cleaner attribution).
+- **Partner bucket: Arize.** The project direction is Arize/Phoenix: trace Gemini
+  reasoning, tool calls, policy guardrails, and manager feedback so every promise
+  decision is auditable. Fivetran is not the submission partner.
+- **Orchestration:** the ADK service (`agent/promise_agent/`) is the primary
+  orchestration path when `ADK_AGENT_URL` is configured, with the in-app Gemini ReAct
+  loop and the deterministic policy engine as fallbacks. Deployment target is Cloud Run.
+- **Primary persona:** duty manager / operations lead (see below).
 
 ---
 
@@ -122,8 +115,9 @@ change these:
    `at_risk`, breakfast & projector→`verifiable`, transfer & invoice→`missing_info`) is
    the acceptance target. Don't change classifier behavior so these flip without reason.
 
-> The authoritative product/data spec is
-> `StayOps Promise Ledger Product & Technical Spec.txt`. When in doubt, follow it.
+> The authoritative product/data spec is [docs/00-spec.md](docs/00-spec.md), and the
+> current execution authority for the agent-team realignment is
+> [agent-team-execution-plan.md](agent-team-execution-plan.md). When in doubt, follow them.
 
 ---
 

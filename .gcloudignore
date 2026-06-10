@@ -1,0 +1,12 @@
+# Files not uploaded to Cloud Build when deploying the Next.js app.
+.git
+node_modules/
+.next/
+.data/
+.env
+.env.local
+.env.*.local
+agent/
+.claude/
+*.tsbuildinfo
+.DS_Store

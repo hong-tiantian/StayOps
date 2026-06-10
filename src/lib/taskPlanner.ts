@@ -1,29 +1,38 @@
-import { getOpsTasks, loadEventSpaces } from "./data";
-import { InfoAnalysis, PromiseDecision, TaskPlan } from "./types";
+import { getOpsTasks, loadEventSpaces, loadReservations } from "./data";
+import { ExtraItem, InfoAnalysis, PromiseDecision, TaskPlan } from "./types";
 
 function existingDueAt(itemId: string): string | undefined {
   return getOpsTasks().find((task) => task.source_promise_id === itemId)?.due_at || undefined;
 }
 
-function recommendedDueAt(decision: PromiseDecision): string | undefined {
-  if (decision.promise_id === "P-004") {
-    const space = loadEventSpaces().find((s) => s.space_id === "MR-BLUE");
-    if (space) return `${space.date}T12:00:00`;
+/** SOP-correct due time for event/AV setup: meeting_start - setup_lead_time. */
+function eventSetupDueAt(decision: PromiseDecision): string | undefined {
+  const reservation = loadReservations().find((r) => r.booking_id === decision.booking_id);
+  const space = loadEventSpaces().find((s) => s.space_id === reservation?.meeting_room_id);
+  if (!space) return undefined;
+  const start = new Date(`${space.date}T${space.start_time}:00`);
+  const due = new Date(start.getTime() - space.setup_lead_time_minutes * 60000);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  // Local naive ISO (no UTC shift) — all demo times are wall-clock local.
+  return `${due.getFullYear()}-${pad(due.getMonth() + 1)}-${pad(due.getDate())}T${pad(due.getHours())}:${pad(due.getMinutes())}:${pad(due.getSeconds())}`;
+}
+
+function recommendedDueAt(decision: PromiseDecision, extra: ExtraItem | undefined): string | undefined {
+  if (extra?.domain === "event_av") {
+    return eventSetupDueAt(decision) ?? existingDueAt(decision.promise_id);
   }
   return existingDueAt(decision.promise_id);
 }
 
-function followUpDescription(decision: PromiseDecision): string {
-  if (decision.promise_id === "P-005") {
-    return "Ask guest for flight number, arrival time, passenger count, and phone number before booking transport.";
-  }
-  if (decision.promise_id === "P-006") {
-    return "Ask company for billing contact, tax ID, and billing address before confirming invoice setup.";
+function followUpDescription(decision: PromiseDecision, extra: ExtraItem | undefined): string {
+  if (extra?.missing_fields?.length) {
+    return `Ask the guest/company for ${extra.missing_fields.join(", ")} before committing to "${decision.promise_text}".`;
   }
   return decision.recommended_action;
 }
 
 export function planTasks(infoAnalysis: InfoAnalysis, decisions: PromiseDecision[]): TaskPlan[] {
+  const extraById = new Map(infoAnalysis.extra_items.map((item) => [item.item_id, item]));
   if (infoAnalysis.basic_info_status !== "complete") {
     return [
       {
@@ -48,13 +57,14 @@ export function planTasks(infoAnalysis: InfoAnalysis, decisions: PromiseDecision
   }
 
   return decisions.map((decision) => {
+    const extra = extraById.get(decision.promise_id);
     if (decision.status === "verifiable") {
       return {
         item_id: decision.promise_id,
         action_type: "create_task",
         department: decision.owner_department,
         description: decision.recommended_action,
-        due_at: recommendedDueAt(decision),
+        due_at: recommendedDueAt(decision, extra),
         reason: "Verified against available evidence and deterministic safety rules; ready for department handoff.",
       };
     }
@@ -85,7 +95,7 @@ export function planTasks(infoAnalysis: InfoAnalysis, decisions: PromiseDecision
         item_id: decision.promise_id,
         action_type: "create_follow_up",
         department: decision.owner_department,
-        description: followUpDescription(decision),
+        description: followUpDescription(decision, extra),
         due_at: existingDueAt(decision.promise_id),
         reason: "Guest/company fields required by the verification route are missing.",
       };

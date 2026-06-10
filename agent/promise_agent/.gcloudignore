@@ -1,0 +1,7 @@
+# Files not uploaded to Cloud Build when deploying the ADK agent service.
+node_modules/
+dist/
+.env
+.env.local
+*.tsbuildinfo
+.DS_Store

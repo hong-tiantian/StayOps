@@ -4,6 +4,7 @@
   "description": "",
   "main": "agent.ts",
   "scripts": {
+    "start": "node --import tsx server.ts",
     "web": "npx @google/adk-devtools web",
     "cli": "npx @google/adk-devtools run agent.ts"
   },

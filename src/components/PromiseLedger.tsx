@@ -80,6 +80,22 @@ export default function PromiseLedger({
                 </td>
                 <td className="px-3 py-3">
                   <StatusBadge status={d.status} lang={lang} />
+                  {d.agent_proposed_status && (
+                    <div
+                      className={`mt-1 text-[10px] ${
+                        d.policy_overruled ? "font-medium text-amber-700" : "text-gray-400"
+                      }`}
+                      title={
+                        lang === "zh"
+                          ? "Gemini 提议的状态；最终状态由确定性安全门裁决"
+                          : "Status proposed by Gemini; final status decided by the deterministic safety gate"
+                      }
+                    >
+                      {d.policy_overruled
+                        ? `⚖️ AI: ${d.agent_proposed_status} → ${lang === "zh" ? "安全门改判" : "overruled"}`
+                        : `AI: ${d.agent_proposed_status} ✓`}
+                    </div>
+                  )}
                 </td>
                 <td className="max-w-[220px] px-3 py-3 text-xs text-gray-500">
                   {d.evidence[0]}

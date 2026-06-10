@@ -16,7 +16,7 @@ import { InMemoryRunner } from "@google/adk";
 import { rootAgent } from "./agent.ts";
 
 const TOOLS_BASE = process.env.STAYOPS_TOOLS_URL ?? "http://localhost:3000";
-const PORT = Number(process.env.ADK_PORT ?? 8080);
+const PORT = Number(process.env.PORT ?? process.env.ADK_PORT ?? 8080);
 const STATUS_ENUM = "verifiable|at_risk|missing_info|conflict|needs_approval|cannot_confirm";
 
 const runner = new InMemoryRunner({ agent: rootAgent });
@@ -49,6 +49,8 @@ app.post("/audit", async (req, res) => {
       `{"promises":[{"promise_text":string,"proposed_status":"${STATUS_ENUM}","evidence":[string]}]}`;
 
     let finalText = "";
+    const toolCalls: Array<{ tool_name: string; input: unknown; output: unknown; called_at: string }> = [];
+    const pendingArgs = new Map<string, unknown>();
     for await (const event of runner.runEphemeral({
       userId: "stayops",
       newMessage: { role: "user", parts: [{ text: prompt }] },
@@ -56,14 +58,28 @@ app.post("/audit", async (req, res) => {
       console.log("[ADK event]", event.author, JSON.stringify(event.content?.parts ?? []).slice(0, 200));
       for (const p of event.content?.parts ?? []) {
         if (typeof p.text === "string" && p.text.trim()) finalText = p.text;
+        // Record the agent's real tool activity so the app can surface the ADK trace.
+        const fc = (p as { functionCall?: { name?: string; args?: unknown } }).functionCall;
+        const fr = (p as { functionResponse?: { name?: string; response?: unknown } }).functionResponse;
+        if (fc?.name) pendingArgs.set(fc.name, fc.args ?? {});
+        if (fr?.name) {
+          toolCalls.push({
+            tool_name: fr.name,
+            input: pendingArgs.get(fr.name) ?? {},
+            output: fr.response ?? null,
+            called_at: new Date().toISOString(),
+          });
+        }
       }
     }
-    console.log("[ADK finalText]", finalText.slice(0, 200));
+    console.log("[ADK finalText]", finalText.slice(0, 200), `(${toolCalls.length} tool calls)`);
 
-    res.json({ proposals: parseProposals(finalText) });
+    res.json({ proposals: parseProposals(finalText), tool_calls: toolCalls });
+    return;
   } catch (e) {
     console.error("[ADK] /audit error:", e);
     res.status(500).json({ error: String(e) });
+    return;
   }
 });
 

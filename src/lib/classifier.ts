@@ -77,7 +77,8 @@ function buildDecision(
   evidence: string[],
   tool_calls: ToolCall[],
   proposal?: AgentProposal,
-  extraItem?: ExtraItem
+  extraItem?: ExtraItem,
+  overruled?: boolean
 ): PromiseDecision {
   // Learning reflux: if managers have repeatedly approved this promise, surface
   // it as a fast-track suggestion on the next audit (status still set by policy).
@@ -102,6 +103,8 @@ function buildDecision(
     linked_task_id: linkedTaskFor(row.promise_id),
     tool_calls,
     learned_fast_track: fast,
+    agent_proposed_status: proposal?.proposed_status,
+    policy_overruled: overruled ?? false,
   };
 }
 
@@ -146,11 +149,13 @@ function assembleFromProposals(
   }
 
   const ledger = loadPromiseLedger().filter((p) => p.booking_id === booking_id);
+  const policyCalls: ToolCall[] = [];
   const decisions: PromiseDecision[] = ledger.map((row) => {
     const ruleKey = row.category;
     const proposal = proposalByRuleKey.get(ruleKey);
     const policyRunner = new ToolRunner();
     const verdict = rulePromiseStatus(ruleKey, policyRunner, reservation);
+    policyCalls.push(...policyRunner.calls);
     const { overruled } = reconcileStatus(verdict.status, proposal?.proposed_status);
 
     const evidence = [row.evidence, ...verdict.evidence];
@@ -162,7 +167,7 @@ function assembleFromProposals(
       }
       for (const e of proposal.evidence ?? []) evidence.push(`AI: ${e}`);
     }
-    return buildDecision(row, verdict.status, evidence, policyRunner.calls, proposal, extraByRuleKey.get(ruleKey));
+    return buildDecision(row, verdict.status, evidence, policyRunner.calls, proposal, extraByRuleKey.get(ruleKey), overruled);
   });
   const taskPlan = planTasks(infoAnalysis, decisions);
 
@@ -173,7 +178,7 @@ function assembleFromProposals(
     agent_trace: buildAgentTrace(source, infoAnalysis, decisions, taskPlan),
     decisions,
     task_plan: taskPlan,
-    tool_calls: [...intakeCalls, ...agentToolCalls],
+    tool_calls: [...intakeCalls, ...agentToolCalls, ...policyCalls],
     freshness_summary: freshnessSummary(),
   };
 }
@@ -183,8 +188,8 @@ async function runAdkAudit(booking_id: string): Promise<AuditResult> {
   const intake = new ToolRunner();
   const reservation = intake.get_reservation(booking_id);
   intake.search_messages(booking_id);
-  const proposals = await runAdkAgent(booking_id);
-  return assembleFromProposals(booking_id, reservation, proposals, "adk", [], intake.calls);
+  const adk = await runAdkAgent(booking_id);
+  return assembleFromProposals(booking_id, reservation, adk.proposals, "adk", adk.tool_calls, intake.calls);
 }
 
 /** Offline fallback: pure deterministic audit using the same policy verdicts. */

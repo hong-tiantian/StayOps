@@ -14,6 +14,10 @@ const DETAIL = {
     evidence: "Evidence",
     risk: "Risk reason",
     action: "Recommended action",
+    safetyGate: "Agent proposal vs safety gate",
+    gateAgreed: "Policy confirmed the agent's proposal",
+    gateOverruled: "Deterministic safety gate overrode the agent",
+    gateRulesOnly: "Agent unavailable — status computed by deterministic rules only",
     approval: "Approval status",
     approvedBy: "Approved by manager",
     requires: "Requires manager approval",
@@ -32,6 +36,10 @@ const DETAIL = {
     evidence: "证据",
     risk: "风险原因",
     action: "建议动作",
+    safetyGate: "Agent 提议 vs 安全门",
+    gateAgreed: "策略确认了 Agent 的提议",
+    gateOverruled: "确定性安全门改判了 Agent 的提议",
+    gateRulesOnly: "Agent 不可用 — 状态完全由确定性规则计算",
     approval: "审批状态",
     approvedBy: "经理已批准",
     requires: "需要经理审批",
@@ -139,6 +147,33 @@ export default function PromiseDetailDrawer({
               ))}
               {fresh.length === 0 && <span className="text-xs text-gray-400">—</span>}
             </div>
+          </Section>
+
+          <Section title={t.safetyGate}>
+            {decision.agent_proposed_status ? (
+              <div
+                className={`rounded-lg border p-2.5 text-xs ${
+                  decision.policy_overruled
+                    ? "border-amber-300 bg-amber-50 text-amber-900"
+                    : "border-green-200 bg-green-50 text-green-800"
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <span className="rounded bg-white/70 px-1.5 py-0.5 font-mono">
+                    AI: {decision.agent_proposed_status}
+                  </span>
+                  <span>→</span>
+                  <span className="rounded bg-white/70 px-1.5 py-0.5 font-mono font-semibold">
+                    {decision.status}
+                  </span>
+                </div>
+                <p className="mt-1.5">
+                  {decision.policy_overruled ? `⚖️ ${t.gateOverruled}` : `✓ ${t.gateAgreed}`}
+                </p>
+              </div>
+            ) : (
+              <span className="text-xs text-gray-400">{t.gateRulesOnly}</span>
+            )}
           </Section>
 
           <Section title={t.evidence}>

@@ -4,6 +4,8 @@
     "module": "nodenext",
     "rootDir": "./",
     "outDir": "dist",
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
     "allowUnreachableCode": false,
     "allowUnusedLabels": false,
     "declaration": true,

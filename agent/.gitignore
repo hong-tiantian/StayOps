@@ -11,3 +11,6 @@ dist/
 # Logs / OS
 npm-debug.log*
 .DS_Store
+
+# Env files are local-only; commit .env.example instead.
+.env

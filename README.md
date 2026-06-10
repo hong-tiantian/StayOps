@@ -114,6 +114,16 @@ npm run dev        # http://localhost:3000
 
 > **No Gemini access?** The app still works: every audit falls back to the deterministic policy engine and the UI badge shows `Deterministic policy`. Gemini is an enhancement, not a hard dependency.
 
+### 4. Deploy (Cloud Run)
+
+```bash
+./scripts/deploy-cloud-run.sh   # deploys the app + the ADK agent service and wires them together
+```
+
+The script deploys both services from source with Cloud Build, points the ADK service's
+tool callbacks at the app URL, and sets `ADK_AGENT_URL` on the app. `--max-instances 1`
+keeps the demo's in-process state consistent.
+
 Other scripts:
 
 ```bash
@@ -168,17 +178,19 @@ All synthetic data lives in `/data` as CSV (loaded by `src/lib/data.ts`), acting
 - Info Analysis layer for intake scope, basic info, extra items, source quotes, domains, rule keys, and verification routes
 - Output-only Task Planning Agent (`task_plan`) for manager review, follow-up, cautious reply, or department handoff
 - Gemini 3.5 Flash agent: real ReAct function-calling loop (`reasoning_source: gemini` verified)
-- Local ADK / Agent Builder service path wired as primary orchestration when `ADK_AGENT_URL` is configured
+- ADK / Agent Builder service as primary orchestration when `ADK_AGENT_URL` is configured, returning both proposals and its real tool-call trace
 - Deterministic policy guardrails + freshness gate + automatic fallback
+- **Agent-vs-safety-gate visibility**: every ledger row and the detail drawer show the status the agent proposed next to the status policy decided — and flag when the gate overruled the model
+- **Phoenix MCP self-review of the latest audit trace**: the agent queries its own spans over the Arize Phoenix MCP server (Gemini turns, tool calls, injection-screen result) and shows them on the dashboard
 - Eval harness with golden set and safety (overpromise) metric
 - Bilingual operational UI: ledger, task board, timeline, hotel map, complaint recovery
+- Cloud Run deploy script for both services: `./scripts/deploy-cloud-run.sh`
 
-**Planned (hackathon roadmap)**
-- **Arize integration hardening**: connect each promise detail to the relevant Phoenix trace/eval evidence, not only the dashboard self-review panel.
-- **Cloud Run deployment**: deploy the Next.js app and ADK service on Google Cloud; do not use Vercel for the hackathon submission.
-- More real front-desk scenarios (VIP upgrade, room move, maintenance, lost & found, long-stay pricing) with approval tiers.
-- A visible self-learning loop: manager approve/edit/reject → learned preferences/skills.
-- Real PMS adapter (Opera/Cloudbeds/Mews) behind the existing tool interfaces.
+**Planned**
+- Per-promise deep links into the matching Phoenix span
+- More real front-desk scenarios (VIP upgrade, room move, maintenance, lost & found, long-stay pricing) with approval tiers
+- A visible self-learning loop: manager approve/edit/reject → learned preferences/skills
+- Real PMS adapter (Opera/Cloudbeds/Mews) behind the existing tool interfaces
 
 ## Limitations
 
@@ -191,9 +203,9 @@ All synthetic data lives in `/data` as CSV (loaded by `src/lib/data.ts`), acting
 
 ## Project Docs
 
-- [Agent decision design](docs/agent-decision-design.md)
-- [MCP integration plan](docs/mcp-integration.md)
-- [API contract](docs/api-contract.md) · [Demo case](docs/demo-case.md) · [Real hotel workflow](docs/real-hotel-workflow.md) · [Personas & permissions](docs/personas-and-permissions.md)
+- [Product & technical spec](docs/00-spec.md)
+- [Demo case](docs/01-demo-case.md) · [Agent design](docs/02-agent-design.md) · [API & tools](docs/03-api-and-tools.md)
+- [Hotel domain background](docs/04-domain-background.md) · [Arize/Phoenix MCP](docs/05-mcp-arize.md) · [Personas & permissions](docs/06-personas-and-permissions.md)
 
 ## License
 
