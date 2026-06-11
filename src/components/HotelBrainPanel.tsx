@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { FileText, Loader2, Upload } from "lucide-react";
 import { Lang } from "@/lib/i18n";
 import { cx } from "@/components/ui/visuals";
 
@@ -207,7 +208,9 @@ export default function HotelBrainPanel({ lang }: { lang: Lang }) {
             <div className="space-y-1.5">
               {docs.map((d) => (
                 <div key={d.doc_id} className="glass-inset flex items-center gap-3 rounded-xl px-3 py-2.5">
-                  <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-white/8 text-sm">📄</span>
+                  <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-white/8 text-white/70">
+                    <FileText className="h-3.5 w-3.5" strokeWidth={1.75} aria-hidden />
+                  </span>
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-[12.5px] font-medium text-white/90">{d.title}</div>
                     <div className="t-caption">
@@ -250,7 +253,13 @@ export default function HotelBrainPanel({ lang }: { lang: Lang }) {
               onChange={(e) => e.target.files && handleFiles(e.target.files)}
             />
             <div>
-              <div className="text-[22px]">{uploading ? "⏳" : "⬆️"}</div>
+              <div className="grid place-items-center text-white/70">
+                {uploading ? (
+                  <Loader2 className="h-6 w-6 animate-spin" strokeWidth={1.75} aria-hidden />
+                ) : (
+                  <Upload className="h-6 w-6" strokeWidth={1.75} aria-hidden />
+                )}
+              </div>
               <p className="mt-1 text-[13px] font-medium text-white/85">
                 {uploading
                   ? zh

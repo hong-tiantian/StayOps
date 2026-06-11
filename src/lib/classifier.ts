@@ -12,6 +12,7 @@ import { planTasks } from "./taskPlanner";
 import {
   AgentTraceStage,
   Department,
+  EvidenceGroups,
   ExtraItem,
   InfoAnalysis,
   Message,
@@ -348,7 +349,8 @@ function buildDecision(
   tool_calls: ToolCall[],
   proposal?: AgentProposal,
   extraItem?: ExtraItem,
-  overruled?: boolean
+  overruled?: boolean,
+  evidence_groups?: EvidenceGroups
 ): PromiseDecision {
   const fast = isFastTrack(row.promise_id);
   const finalEvidence = fast
@@ -374,6 +376,7 @@ function buildDecision(
     learned_fast_track: fast,
     agent_proposed_status: proposal?.proposed_status,
     policy_overruled: overruled ?? false,
+    evidence_groups,
   };
 }
 
@@ -473,25 +476,31 @@ function assembleFromProposals(
       ruleKey === "parking" && hotelEvidence.length
         ? verdict.evidence.filter((item) => !item.includes("SOP-PRK"))
         : verdict.evidence;
-    const evidence = [row.evidence, ...hotelEvidence, ...genericEvidence];
-
+    const gateNotes: string[] = [];
     if (gatedStatus !== verdict.status) {
-      evidence.push(
+      gateNotes.push(
         `Basic-info gate: ${infoAnalysis.basic_info_status}; missing fields: ${infoAnalysis.missing_basic_fields.join(", ") || "none"}.`
       );
     }
-
-    if (proposal) {
-      if (overruled) {
-        evidence.push(
-          `Policy guardrail: agent proposed "${proposal.proposed_status}" -> policy set "${gatedStatus}" from fresh evidence.`
-        );
-      }
-      for (const item of proposal.evidence ?? []) evidence.push(`AI: ${item}`);
+    if (proposal && overruled) {
+      gateNotes.push(
+        `Policy guardrail: agent proposed "${proposal.proposed_status}" -> policy set "${gatedStatus}" from fresh evidence.`
+      );
     }
+    const agentNotes = proposal ? (proposal.evidence ?? []).map((item) => `AI: ${item}`) : [];
+
+    // Flat union kept for eval/back-compat; the grouped shape is what the UI renders.
+    const evidence = [row.evidence, ...hotelEvidence, ...genericEvidence, ...gateNotes, ...agentNotes];
+    const evidenceGroups: EvidenceGroups = {
+      headline: row.evidence,
+      policy: hotelEvidence,
+      checks: genericEvidence,
+      gate: gateNotes,
+      agent: agentNotes,
+    };
 
     return {
-      ...buildDecision(row, gatedStatus, evidence, policyRunner.calls, proposal, extraByRuleKey.get(ruleKey), overruled),
+      ...buildDecision(row, gatedStatus, evidence, policyRunner.calls, proposal, extraByRuleKey.get(ruleKey), overruled, evidenceGroups),
       learning_provenance: caseProvenanceFor(extraItem.text, context),
     };
   });
@@ -535,14 +544,22 @@ export function runDeterministicAudit(booking_id: string, messageOverride?: Mess
     allCalls.push(...policyRunner.calls);
 
     const gatedStatus = applyBasicInfoGate(verdict.status, infoAnalysis);
-    const evidence = [row.evidence, ...verdict.evidence];
+    const gateNotes: string[] = [];
     if (gatedStatus !== verdict.status) {
-      evidence.push(
+      gateNotes.push(
         `Basic-info gate: ${infoAnalysis.basic_info_status}; missing fields: ${infoAnalysis.missing_basic_fields.join(", ") || "none"}.`
       );
     }
+    const evidence = [row.evidence, ...verdict.evidence, ...gateNotes];
+    const evidenceGroups: EvidenceGroups = {
+      headline: row.evidence,
+      policy: [],
+      checks: verdict.evidence,
+      gate: gateNotes,
+      agent: [],
+    };
 
-    return buildDecision(row, gatedStatus, evidence, policyRunner.calls, undefined, extraByRuleKey.get(ruleKey));
+    return buildDecision(row, gatedStatus, evidence, policyRunner.calls, undefined, extraByRuleKey.get(ruleKey), undefined, evidenceGroups);
   });
   const taskPlan = planTasks(infoAnalysis, decisions);
 

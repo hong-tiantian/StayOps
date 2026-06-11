@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { AlertTriangle } from "lucide-react";
 import { Lang } from "@/lib/i18n";
 
 /* Reply draft — the closed loop. The agent drafts the outgoing guest email
@@ -137,7 +138,8 @@ export default function ReplyDraftCard({
               </span>
             ) : (
               <span className="rounded-full border border-amber-300/30 bg-amber-400/10 px-2 py-0.5 text-[10px] font-medium text-amber-200">
-                {zh ? `⚠ ${draft.lint_flags.length} 处需人工确认` : `⚠ ${draft.lint_flags.length} flag(s) for review`}
+                <AlertTriangle className="mr-1 inline h-2.5 w-2.5 align-[-1px]" strokeWidth={2} aria-hidden />
+                {zh ? `${draft.lint_flags.length} 处需人工确认` : `${draft.lint_flags.length} flag(s) for review`}
               </span>
             )}
             {draft.regenerated && (

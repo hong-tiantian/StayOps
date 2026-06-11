@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Lang } from "@/lib/i18n";
 import { cx } from "@/components/ui/visuals";
 
@@ -51,25 +51,51 @@ function MetricTile({ label, value, ok }: { label: string; value: string; ok: bo
   );
 }
 
+/* Eval is expensive (forces a fresh audit server-side), so results are cached
+   per booking for the lifetime of the page — only an explicit Re-run repeats it. */
+const evalCache = new Map<string, EvalResult>();
+
+const STAGES = {
+  en: ["Auditing the golden case…", "Scoring classification & approvals…", "Checking complaint trace & writing report…"],
+  zh: ["正在审计黄金用例…", "正在为状态判定与审批合规打分…", "正在核对投诉追溯并生成报告…"],
+} as const;
+
 export default function EvalMetricsCard({ bookingId, lang }: { bookingId: string; lang: Lang }) {
   const zh = lang === "zh";
-  const [result, setResult] = useState<EvalResult | null>(null);
+  const [result, setResult] = useState<EvalResult | null>(evalCache.get(bookingId) ?? null);
   const [loading, setLoading] = useState(false);
+  const [stage, setStage] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const stageTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    setResult(evalCache.get(bookingId) ?? null);
+  }, [bookingId]);
+
+  useEffect(() => () => {
+    if (stageTimer.current) clearInterval(stageTimer.current);
+  }, []);
 
   const run = useCallback(async () => {
     setLoading(true);
     setError(null);
+    setStage(0);
+    stageTimer.current = setInterval(() => {
+      setStage((s) => Math.min(s + 1, STAGES.en.length - 1));
+    }, 3000);
     try {
       const r = await fetch(`/api/eval/${bookingId}`, { method: "POST" });
       if (!r.ok) {
         const j = await r.json().catch(() => null);
         throw new Error(j?.error ?? `HTTP ${r.status}`);
       }
-      setResult((await r.json()) as EvalResult);
+      const data = (await r.json()) as EvalResult;
+      evalCache.set(bookingId, data);
+      setResult(data);
     } catch (e) {
       setError(e instanceof Error ? e.message : "eval_failed");
     } finally {
+      if (stageTimer.current) clearInterval(stageTimer.current);
       setLoading(false);
     }
   }, [bookingId]);
@@ -79,8 +105,8 @@ export default function EvalMetricsCard({ bookingId, lang }: { bookingId: string
       <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
         <p className="t-caption max-w-[260px]">
           {zh
-            ? "对当前预订强制重跑审查并对照黄金用例评分（约 5–10 秒）"
-            : "Re-runs the audit against the golden case and scores it (~5–10s)"}
+            ? "对当前预订强制重跑审查并对照黄金用例评分（约 5–10 秒，结果会缓存）"
+            : "Re-runs the audit against the golden case and scores it (~5–10s, result is cached)"}
         </p>
         {error && <p className="text-[11px] text-rose-300">{error}</p>}
         <button
@@ -91,10 +117,20 @@ export default function EvalMetricsCard({ bookingId, lang }: { bookingId: string
           {loading ? (
             <>
               <span className="h-3 w-3 animate-spin rounded-full border border-white/30 border-t-white/90" />
-              {zh ? "评测中…" : "Evaluating…"}
+              {STAGES[lang][stage]}
             </>
           ) : zh ? "运行评测" : "Run eval"}
         </button>
+        {loading && (
+          <div className="flex items-center gap-1.5">
+            {STAGES[lang].map((_, i) => (
+              <span
+                key={i}
+                className={cx("h-1 rounded-full transition-all", i <= stage ? "w-6 bg-white/70" : "w-3 bg-white/15")}
+              />
+            ))}
+          </div>
+        )}
       </div>
     );
   }

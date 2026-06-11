@@ -1,8 +1,10 @@
 "use client";
 
+import { AlertTriangle } from "lucide-react";
 import { OpsTask } from "@/lib/types";
 import { TASK_COLUMNS, TaskColumn, TaskWarning } from "@/lib/taskTypes";
 import { Lang, ui } from "@/lib/i18n";
+import { deptLabel } from "@/lib/humanize";
 
 export interface DecoratedTask extends OpsTask {
   column: TaskColumn;
@@ -62,7 +64,7 @@ export default function TaskBoard({
                       <div className="mb-1.5 flex items-center justify-between">
                         <span className="tnum font-mono text-[11px] text-white/38">{t.task_id}</span>
                         <span className="rounded-lg border border-white/10 bg-white/5 px-2 py-0.5 text-[11px] text-white/65">
-                          {t.department.replace(/_/g, " ")}
+                          {deptLabel(t.department, lang)}
                         </span>
                       </div>
                       <p className="mb-2.5 text-[13.5px] font-medium leading-snug text-white/90">{t.description}</p>
@@ -82,7 +84,8 @@ export default function TaskBoard({
                               : "border border-amber-300/30 bg-amber-400/12 text-amber-200"
                           }`}
                         >
-                          ⚠ {t.warning.message}
+                          <AlertTriangle className="mr-1 inline h-3 w-3 align-[-2px]" strokeWidth={2} aria-hidden />
+                          {t.warning.message}
                         </div>
                       )}
                     </div>

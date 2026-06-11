@@ -43,7 +43,9 @@ app.post("/audit", async (req, res) => {
       .map((m: { channel?: string; sender?: string; body?: string }) => `[${m.channel}] ${m.sender}: ${m.body}`)
       .join("\n\n");
     const resCtx = reservation
-      ? `Booking ${reservation.booking_id}: ${reservation.company_name}, arrival ${reservation.arrival_date} ${reservation.arrival_time}.`
+      ? `Booking ${reservation.booking_id}: ${reservation.company_name}, ` +
+        `${reservation.room_count} rooms (${reservation.king_count} king/${reservation.twin_count} twin), ` +
+        `arrival ${reservation.arrival_date} ${reservation.arrival_time}, meeting room ${reservation.meeting_room_id || "none"}.`
       : "Reservation unavailable.";
 
     const prompt =

@@ -42,7 +42,7 @@
   --c-override: 188 162 240;/* violet    — safety-gate override */
 
   /* Card material — liquid glass: refraction via saturate, specular edges */
-  --card-fill: rgba(255, 255, 255, 0.12);
+  --card-fill: rgba(10, 16, 24, 0.72);
   --card-stroke: rgba(255, 255, 255, 0.22);
   --card-radius: 24px;
   --noise: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E");
@@ -123,7 +123,7 @@ body {
   will-change: transform, opacity;
   animation: kenburns 46s ease-in-out infinite alternate;
   /* lift the photos toward the saturation the glass expects to refract */
-  filter: saturate(1.35) contrast(1.05);
+  filter: brightness(0.7) saturate(1.25) contrast(1.08);
 }
 .sky-scrim {
   position: fixed;
@@ -324,7 +324,7 @@ body {
       var(--noise),
       linear-gradient(125deg, rgba(255, 255, 255, 0.26) 0%, rgba(255, 255, 255, 0.08) 22%, transparent 42%),
       linear-gradient(165deg, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0.04) 50%, rgba(255, 255, 255, 0.1) 100%),
-      rgba(8, 18, 22, 0.4);
+      rgba(8, 16, 24, 0.72);
     box-shadow: var(--edge-light), var(--shadow-card);
     backdrop-filter: blur(48px) saturate(210%) brightness(1.1);
     -webkit-backdrop-filter: blur(48px) saturate(210%) brightness(1.1);
@@ -337,7 +337,7 @@ body {
       var(--noise),
       linear-gradient(125deg, rgba(255, 255, 255, 0.26) 0%, rgba(255, 255, 255, 0.08) 22%, transparent 42%),
       linear-gradient(165deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.03) 52%, rgba(255, 255, 255, 0.07) 100%),
-      rgba(10, 20, 26, 0.4);
+      rgba(8, 15, 24, 0.74);
     border-radius: var(--card-radius);
     box-shadow: var(--edge-light), var(--shadow-card);
     backdrop-filter: blur(40px) saturate(205%) brightness(1.08);
@@ -351,7 +351,8 @@ body {
     background:
       var(--noise),
       linear-gradient(125deg, rgba(255, 255, 255, 0.26) 0%, rgba(255, 255, 255, 0.09) 24%, transparent 44%),
-      linear-gradient(165deg, rgba(255, 255, 255, 0.11), rgba(255, 255, 255, 0.05));
+      linear-gradient(165deg, rgba(255, 255, 255, 0.11), rgba(255, 255, 255, 0.05)),
+      rgba(8, 14, 22, 0.66);
     border-radius: var(--card-radius);
     box-shadow: var(--edge-light), 0 2px 4px rgba(4, 10, 12, 0.3), 0 40px 90px -40px rgba(4, 10, 12, 0.5);
     backdrop-filter: blur(32px) saturate(210%) brightness(1.1);
@@ -482,6 +483,52 @@ body {
     background: rgba(246, 142, 158, 0.18);
   }
 
+  .select-glass {
+    height: 32px;
+    max-width: 320px;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    background:
+      linear-gradient(165deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.04)),
+      rgba(8, 14, 22, 0.82);
+    color: rgba(255, 255, 255, 0.92);
+    padding: 0 34px 0 12px;
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 32px;
+    outline: none;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18);
+    backdrop-filter: blur(18px) saturate(160%);
+    -webkit-backdrop-filter: blur(18px) saturate(160%);
+    appearance: none;
+    -webkit-appearance: none;
+    background-image:
+      linear-gradient(45deg, transparent 50%, rgba(255, 255, 255, 0.74) 50%),
+      linear-gradient(135deg, rgba(255, 255, 255, 0.74) 50%, transparent 50%),
+      linear-gradient(165deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.04));
+    background-position:
+      calc(100% - 17px) 13px,
+      calc(100% - 12px) 13px,
+      0 0;
+    background-size:
+      5px 5px,
+      5px 5px,
+      100% 100%;
+    background-repeat: no-repeat;
+  }
+  .select-glass:hover {
+    border-color: rgba(255, 255, 255, 0.26);
+    background-color: rgba(10, 18, 28, 0.9);
+  }
+  .select-glass:focus {
+    border-color: rgba(255, 255, 255, 0.38);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 0 0 3px rgb(var(--ambient) / 18%);
+  }
+  .select-glass option {
+    background: rgb(12, 18, 29);
+    color: white;
+  }
+
   /* Trend pills — neutral glass, color lives only in the text */
   .pill-up {
     @apply inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold;
@@ -559,7 +606,9 @@ body {
   }
   .liquid-window {
     border: 1px solid rgba(255, 255, 255, 0.14);
-    background: linear-gradient(165deg, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0.03));
+    background:
+      linear-gradient(165deg, rgba(255, 255, 255, 0.11), rgba(255, 255, 255, 0.04)),
+      rgba(8, 14, 22, 0.62);
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22);
     backdrop-filter: blur(22px) saturate(180%);
     -webkit-backdrop-filter: blur(22px) saturate(180%);

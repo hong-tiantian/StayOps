@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Bot, Brain, CheckCircle2, Network, ShieldCheck, Timer, Wrench } from "lucide-react";
 import { Lang } from "@/lib/i18n";
 
 interface LearnedPreference {
@@ -80,8 +81,9 @@ export default function SelfReview({ lang, refreshKey, bare = false }: { lang: L
       {/* Self-introspection over MCP */}
       <div className="glass-inset mb-3 rounded-2xl p-3 text-[12px]">
         {data?.ok ? (
-          <span className="text-white/70">
-            {zh ? "✅ 正在 Phoenix 中监控自身 · 项目 " : "✅ Monitoring itself in Phoenix · project "}
+          <span className="flex items-center gap-1.5 text-white/70">
+            <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-300" strokeWidth={1.75} aria-hidden />
+            {zh ? "正在 Phoenix 中监控自身 · 项目 " : "Monitoring itself in Phoenix · project "}
             <span className="font-semibold text-white">{data.self_project?.name ?? "stayops"}</span>
             {data.all_projects ? ` · ${data.all_projects.length} ${zh ? "个项目" : "projects"}` : ""}
           </span>
@@ -99,12 +101,12 @@ export default function SelfReview({ lang, refreshKey, bare = false }: { lang: L
             {zh ? "最近一次审计的自审（来自自身 trace）" : "Latest audit, self-reviewed from its own trace"}
           </div>
           <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-white/65">
-            <span>🧩 {data.audit_trace.span_count} {zh ? "个 span" : "spans"}</span>
-            <span>🤖 {data.audit_trace.llm_calls} {zh ? "次 Gemini 调用" : "Gemini turn(s)"}</span>
-            <span>🔧 {data.audit_trace.tool_calls} {zh ? "次工具调用" : "tool call(s)"}</span>
-            <span>⏱ {(data.audit_trace.duration_ms / 1000).toFixed(1)}s</span>
-            <span>
-              🛡 {zh ? "注入检测: " : "injection screen: "}
+            <span className="flex items-center gap-1"><Network className="h-3 w-3" strokeWidth={1.75} aria-hidden /> {data.audit_trace.span_count} {zh ? "个 span" : "spans"}</span>
+            <span className="flex items-center gap-1"><Bot className="h-3 w-3" strokeWidth={1.75} aria-hidden /> {data.audit_trace.llm_calls} {zh ? "次 Gemini 调用" : "Gemini turn(s)"}</span>
+            <span className="flex items-center gap-1"><Wrench className="h-3 w-3" strokeWidth={1.75} aria-hidden /> {data.audit_trace.tool_calls} {zh ? "次工具调用" : "tool call(s)"}</span>
+            <span className="flex items-center gap-1"><Timer className="h-3 w-3" strokeWidth={1.75} aria-hidden /> {(data.audit_trace.duration_ms / 1000).toFixed(1)}s</span>
+            <span className="flex items-center gap-1">
+              <ShieldCheck className="h-3 w-3" strokeWidth={1.75} aria-hidden /> {zh ? "注入检测: " : "injection screen: "}
               {data.audit_trace.injection_flags === "none" ? (zh ? "干净" : "clean") : data.audit_trace.injection_flags}
             </span>
           </div>
@@ -124,8 +126,9 @@ export default function SelfReview({ lang, refreshKey, bare = false }: { lang: L
       )}
 
       {/* Learned preferences from manager feedback */}
-      <div className="text-[11px] text-white/40">
-        🧠 {zh ? `已从 ${total} 次经理决策中学习` : `Learned from ${total} manager decision(s)`}
+      <div className="flex items-center gap-1.5 text-[11px] text-white/40">
+        <Brain className="h-3 w-3" strokeWidth={1.75} aria-hidden />
+        {zh ? `已从 ${total} 次经理决策中学习` : `Learned from ${total} manager decision(s)`}
       </div>
       {learned.length === 0 ? (
         <p className="mt-2 text-[12px] text-white/55">

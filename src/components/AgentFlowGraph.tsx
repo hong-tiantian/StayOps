@@ -2,6 +2,7 @@
 
 import { Fragment, useMemo } from "react";
 import { motion } from "framer-motion";
+import { AlertTriangle, Scale } from "lucide-react";
 import {
   FreshnessResult,
   PromiseDecision,
@@ -31,11 +32,11 @@ const STATUS_RGB: Record<CellStatus, string> = {
   pending: "148,163,184",
 };
 
-const STATUS_ICON: Record<CellStatus, string> = {
+const STATUS_ICON: Record<CellStatus, React.ReactNode> = {
   complete: "✓",
   active: "●",
-  alert: "⚠",
-  override: "⚖",
+  alert: <AlertTriangle className="h-2.5 w-2.5" strokeWidth={2.2} aria-hidden />,
+  override: <Scale className="h-2.5 w-2.5" strokeWidth={2.2} aria-hidden />,
   pending: "○",
 };
 
@@ -191,7 +192,9 @@ export default function AgentFlowGraph({
             {totalDone}<span className="font-normal text-white/38">/{totalStages} {zh ? "阶段" : "stages"}</span>
           </span>
           {totalAlerts > 0 && (
-            <span className="tnum text-[13px] font-semibold text-rose-300">⚠ {totalAlerts}</span>
+            <span className="tnum flex items-center gap-1 text-[13px] font-semibold text-rose-300">
+              <AlertTriangle className="h-3 w-3" strokeWidth={2} aria-hidden /> {totalAlerts}
+            </span>
           )}
           <span className="t-caption">{sourceLabel}</span>
         </div>

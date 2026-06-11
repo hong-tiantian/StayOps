@@ -11,9 +11,9 @@
 比赛（Google Cloud Rapid Agent Hackathon，**截止 2026-06-11 14:00 PT / 2026-06-12 07:00 GMT+10 Sydney time**）Stage One 硬性要求：
 
 1. ✅ **用 Gemini** 做模型 —— 已有（`@google/genai`，`src/lib/gemini.ts`）。
-2. 🟡 **用 Google Cloud Agent Builder / ADK 做编排（managed orchestration path）** —— 本地链路已跑通，Cloud Run 部署和提交材料仍待完成。
-3. 🟡 **集成一个 partner 的 MCP** —— 选了 Arize/Phoenix，代码里有，待确认"够分量"。
-4. ⬜ 提交物：公开 repo + OSI license（已有 MIT）+ **托管 URL** + 3 分钟 demo 视频。
+2. 🟡 **用 Google Cloud Agent Builder / ADK 做编排（managed orchestration path）** —— 本地链路已跑通；README 已记录 Cloud Run URL，最终 hosted env 仍需现场验证 `ADK_AGENT_URL`。
+3. 🟡 **集成一个 partner 的 MCP** —— 选了 Arize/Phoenix，代码和 Judge UI 都有 runtime self-review 入口；最终 env 需确认 `PHOENIX_*`。
+4. 🟡 提交物：公开 repo + OSI license（已有 MIT）+ **托管 URL 已记录**；3 分钟 demo 视频和 Devpost 表单仍需人工确认。
 
 **当前缺口精确定位：**
 ```
@@ -97,11 +97,11 @@ primary:  Next.js API route ──调用──> ADK Agent (本地已跑通；目
 > - ⚠️ 实现前先确认 phoenix-mcp 真实工具名（读 trace / 写标注），勿凭记忆
 > - 反模式（不要做）：让 agent 在推理中途把 Arize 当工具调用 —— 更像凑数
 
-### 阶段 3 — 部署前端 + 文档/提交物　【⬜ 未开始】
-- [ ] Next.js 部署到 **Cloud Run**（⚠️ 不用 Vercel）→ 拿到公开托管 URL
-- [~] 更新 README / 架构图，说明 Agent Builder 编排路径
-- [ ] 录 3 分钟 demo 视频；确认 repo 公开 + MIT license
-- [ ] 更新 `AGENTS.md` 里 🟡 OPEN DECISION：本地 ADK 已实现，Cloud Run/提交仍待完成
+### 阶段 3 — 部署前端 + 文档/提交物　【🟡 最终验证中】
+- [~] Next.js 部署到 **Cloud Run**（⚠️ 不用 Vercel）→ README 已记录公开 URL；提交前必须用 fresh browser 验证 URL、`reasoning_source`、Phoenix MCP。
+- [~] 更新 README / 架构图，说明 Agent Builder 编排路径。
+- [ ] 录 3 分钟 demo 视频；确认 repo 公开 + MIT license。
+- [~] 更新 `AGENTS.md` / README 口径：本地 ADK 已实现，Cloud Run URL 已记录，最终 hosted env 仍需验证。
 
 ---
 
@@ -109,10 +109,10 @@ primary:  Next.js API route ──调用──> ADK Agent (本地已跑通；目
 
 | 项 | 值 |
 |----|----|
-| Project ID | `<your-gcp-project-id>`（默认 project 已设） |
+| Project ID | `<your-gcp-project-id>` |
 | Project number | `<your-gcp-project-number>` |
 | Region | `us-central1`（ai/region + run/region 已设） |
-| Cloud Run web URL | `<your-cloud-run-url>` |
+| Cloud Run web URL | `https://stayops-mzcsrz357a-uc.a.run.app`（提交前 fresh browser 验证） |
 | Billing | `<your-billing-account-id>`（已关联，billingEnabled=true） |
 | 登录账号 | `<your-google-account>` |
 | gcloud 路径 | `C:\Users\Lenovo\AppData\Local\Google\Cloud SDK\google-cloud-sdk\bin` |

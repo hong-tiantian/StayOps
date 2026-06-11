@@ -1,14 +1,12 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import AgentFlowGraph from "@/components/AgentFlowGraph";
-import EvalMetricsCard from "@/components/EvalMetricsCard";
-import SelfReview from "@/components/SelfReview";
+import { AlertTriangle, ChevronLeft } from "lucide-react";
 import StatusBadge from "@/components/StatusBadge";
 import WidgetGrid, { GLayouts, WidgetItem } from "@/components/widgets/WidgetGrid";
 import WidgetCard from "@/components/widgets/WidgetCard";
-import Modal from "@/components/ui/Modal";
+import { DeptIcon } from "@/components/ui/icons";
 import { DecoratedTask } from "@/components/TaskBoard";
 import {
   Bar,
@@ -16,38 +14,22 @@ import {
   CountUp,
   Donut,
   DonutSlice,
-  LegendRow,
-  TrendPill,
   cx,
   EASE,
 } from "@/components/ui/visuals";
 import {
-  AgentTraceStage,
   FreshnessResult,
   InfoAnalysis,
-  Message,
   PromiseDecision,
-  RecoveryTrace,
   Reservation,
   TaskPlan,
-  ToolCall,
 } from "@/lib/types";
 import { Lang } from "@/lib/i18n";
-import { toolIcon, toolLabel, describeCall } from "@/lib/humanize";
-import { laneCellStatuses, matchedFor, summarize } from "@/lib/laneProgress";
+import { deptLabel, effectiveStatus, fieldLabel, humanizeOpsText } from "@/lib/humanize";
 
-export type WorkspaceMode = "manager" | "trace";
-
-const DEPT_ICON: Record<string, string> = {
-  front_desk: "🛎",
-  housekeeping: "🧹",
-  fb: "🍽",
-  events: "📽",
-  sales: "💼",
-  concierge: "🎩",
-  manager: "🧭",
-  maintenance: "🔧",
-};
+/* Manager workspace — answers ONE question: "what needs me right now?"
+   Everything technical (agent pipeline, tool calls, eval, freshness toggles)
+   lives in the Judge view. */
 
 type Bucket = "verifiable" | "at_risk" | "missing_info" | "cannot_confirm";
 
@@ -58,25 +40,75 @@ function bucketOf(status: string): Bucket {
   return "cannot_confirm";
 }
 
-const GRADIENTS = ["grad-mint", "grad-violet", "grad-cyan", "grad-amber"];
-
 function compactTime(value?: string) {
   if (!value) return "—";
   const v = value.replace("T", " ").replace("Z", "");
   return v.length > 16 ? v.slice(5, 16) : v;
 }
 
+function bookingLabel(b: BookingOption) {
+  const date = b.arrival_date ? ` · ${b.arrival_date.slice(5)}` : "";
+  return `${b.company_name}${date}`;
+}
+
+const NO_APPROVALS = new Set<string>();
+
+const ACTION_LABELS: Record<string, { en: string; zh: string }> = {
+  create_task: { en: "Create task", zh: "创建任务" },
+  request_manager_approval: { en: "Needs manager approval", zh: "请求经理审批" },
+  request_missing_info: { en: "Ask guest for details", zh: "追问缺失信息" },
+  escalate: { en: "Escalate", zh: "上报处理" },
+  monitor: { en: "Monitor", zh: "保持关注" },
+  none: { en: "No action", zh: "无需动作" },
+};
+
+function actionLabel(code: string | undefined, lang: Lang) {
+  const key = code ?? "monitor";
+  return ACTION_LABELS[key]?.[lang] ?? key.replace(/_/g, " ");
+}
+
 function mn(o: { i: string; x: number; y: number; w: number; h: number }) {
   return { ...o, minW: 2, minH: 3 };
 }
 
+type DrillKey =
+  | "queue"
+  | "atrisk"
+  | "approval"
+  | "missing"
+  | "blocked"
+  | "all"
+  | "portfolio_all"
+  | "portfolio_atrisk"
+  | "portfolio_missing"
+  | "portfolio_blocked";
+
+interface BookingOption {
+  booking_id: string;
+  company_name: string;
+  arrival_date?: string;
+}
+
+interface BookingOverview {
+  booking_id: string;
+  company_name: string;
+  arrival_date: string;
+  counts: { total: number; safe: number; risk: number; missing: number; blocked: number };
+  pending_approval: number;
+  urgency: number;
+  urgent: boolean;
+  watch: boolean;
+  top_issue: { promise_text: string; status: string } | null;
+  decisions?: PromiseDecision[];
+}
+
 export default function CommandWorkspace({
-  mode,
-  onMode,
   lang,
+  bookingId,
+  bookings,
+  onBooking,
   reservation,
   decisions,
-  selected,
   onSelect,
   approved,
   onApprove,
@@ -84,24 +116,16 @@ export default function CommandWorkspace({
   taskPlan,
   infoAnalysis,
   freshness,
-  demoNow,
-  agentTrace,
-  auditCalls,
-  reasoningSource,
-  trace,
   onRunAudit,
-  onTrace,
-  onToggleFreshness,
   auditing,
-  tracing,
+  navResetNonce,
 }: {
-  mode: WorkspaceMode;
-  onMode: (mode: WorkspaceMode) => void;
   lang: Lang;
+  bookingId: string;
+  bookings: BookingOption[];
+  onBooking: (id: string) => void;
   reservation: Reservation | null;
-  messages: Message[];
   decisions: PromiseDecision[];
-  selected: PromiseDecision | null;
   onSelect: (decision: PromiseDecision) => void;
   approved: Set<string>;
   onApprove: (promiseId: string) => void;
@@ -109,50 +133,75 @@ export default function CommandWorkspace({
   taskPlan: TaskPlan[];
   infoAnalysis: InfoAnalysis | null;
   freshness: FreshnessResult[];
-  demoNow: string;
-  agentTrace: AgentTraceStage[];
-  auditCalls: ToolCall[];
-  reasoningSource: "adk" | "gemini" | "rules" | null;
-  trace: RecoveryTrace | null;
   onRunAudit: () => void;
-  onTrace: () => void;
-  onToggleFreshness: (source: string) => void;
   auditing: boolean;
-  tracing: boolean;
+  /** Incremented by the page on every nav click — re-clicking "Dashboard"
+      collapses the drill panel back to the overview. */
+  navResetNonce?: number;
 }) {
   const zh = lang === "zh";
-  const active = selected ?? decisions[0] ?? null;
-  const [stackTop, setStackTop] = useState(0);
   const [editing, setEditing] = useState(false);
   const [resetNonce, setResetNonce] = useState(0);
-  const [workflowOpen, setWorkflowOpen] = useState(false);
-  const [drillPanel, setDrillPanel] = useState<"atrisk" | "missing" | "blocked" | "approval" | "all" | null>(null);
+  const [drillPanel, setDrillPanel] = useState<DrillKey | null>(null);
+
+  /* Donut legend → the actionable list for that status (with approve /
+     follow-up buttons), not just a visual filter. */
+  const BUCKET_DRILL: Record<Bucket, DrillKey> = {
+    verifiable: "all",
+    at_risk: "atrisk",
+    missing_info: "missing",
+    cannot_confirm: "blocked",
+  };
+
+  useEffect(() => {
+    if (navResetNonce !== undefined) setDrillPanel(null);
+  }, [navResetNonce]);
+
+  /* Portfolio strip data — fast rules-only audit across ALL bookings,
+     re-fetched whenever this booking's audit lands (cheap, ms-level). */
+  const [portfolio, setPortfolio] = useState<BookingOverview[]>([]);
+  useEffect(() => {
+    fetch("/api/overview")
+      .then((r) => r.json())
+      .then((j) => setPortfolio(j.bookings ?? []))
+      .catch(() => setPortfolio([]));
+  }, [decisions]);
 
   const total = decisions.length || 0;
   const safe = decisions.filter((d) => bucketOf(d.status) === "verifiable").length;
   const risk = decisions.filter((d) => bucketOf(d.status) === "at_risk").length;
   const missing = decisions.filter((d) => bucketOf(d.status) === "missing_info").length;
   const blocked = decisions.filter((d) => bucketOf(d.status) === "cannot_confirm").length;
-  const overrides = decisions.filter((d) => d.policy_overruled).length;
   const staleSources = freshness.filter((f) => f.freshness_status === "stale");
-  const healthPct = total ? Math.round((safe / total) * 100) : 0;
-
-  // Per-lane workflow summary (shared logic with the full graph).
-  const laneSummaries = useMemo(
-    () =>
-      decisions.map((d) => {
-        const plan = taskPlan.find((p) => p.item_id === d.promise_id);
-        const matched = matchedFor(trace, d.promise_id);
-        const s = summarize(laneCellStatuses(d, plan, Boolean(matched), approved));
-        return { d, ...s };
-      }),
-    [decisions, taskPlan, trace, approved]
+  const portfolioDecisions = useMemo(
+    () => portfolio.flatMap((b) => (b.decisions ?? []).map((d) => ({ ...d, booking_id: d.booking_id || b.booking_id }))),
+    [portfolio]
   );
-  const flowDone = laneSummaries.reduce((a, l) => a + l.done, 0);
-  const flowAlerts = laneSummaries.reduce((a, l) => a + l.alerts, 0);
-  const flowTotal = (decisions.length || 0) * 6;
+  const portfolioCounts = useMemo(
+    () => ({
+      total: portfolioDecisions.length,
+      risk: portfolioDecisions.filter((d) => ["at_risk", "needs_approval"].includes(d.status)).length,
+      missing: portfolioDecisions.filter((d) => d.status === "missing_info").length,
+      blocked: portfolioDecisions.filter((d) => ["cannot_confirm", "conflict", "failed"].includes(d.status)).length,
+    }),
+    [portfolioDecisions]
+  );
+  const bookingNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const b of portfolio) map.set(b.booking_id, b.company_name);
+    return map;
+  }, [portfolio]);
 
-  const donutData: DonutSlice[] = useMemo(() => {
+  const isActionable = (d: PromiseDecision) =>
+    ["at_risk", "needs_approval", "missing_info", "cannot_confirm", "conflict", "failed"].includes(d.status) &&
+    !(d.approval_required && approved.has(d.promise_id));
+  const queue = decisions.filter(isActionable);
+  const pendingApproval = decisions.filter((d) => d.approval_required && !approved.has(d.promise_id)).length;
+  const queueRisk = queue.filter((d) => ["at_risk", "needs_approval"].includes(d.status)).length;
+  const queueMissing = queue.filter((d) => d.status === "missing_info").length;
+  const queueBlocked = queue.filter((d) => ["cannot_confirm", "conflict", "failed"].includes(d.status)).length;
+
+  const donutData: (DonutSlice & { key: Bucket })[] = useMemo(() => {
     const counts: Record<Bucket, number> = { verifiable: safe, at_risk: risk, missing_info: missing, cannot_confirm: blocked };
     const meta: Record<Bucket, { label: string; rgb: string }> = {
       verifiable: { label: zh ? "可验证" : "Verifiable", rgb: "126,200,169" },
@@ -161,7 +210,7 @@ export default function CommandWorkspace({
       cannot_confirm: { label: zh ? "无法确认" : "Blocked", rgb: "229,138,148" },
     };
     return (Object.keys(counts) as Bucket[])
-      .map((k) => ({ label: meta[k].label, value: counts[k], color: `rgb(${meta[k].rgb})` }))
+      .map((k) => ({ key: k, label: meta[k].label, value: counts[k], color: `rgb(${meta[k].rgb})` }))
       .filter((s) => s.value > 0);
   }, [safe, risk, missing, blocked, zh]);
 
@@ -171,203 +220,81 @@ export default function CommandWorkspace({
     return Object.entries(counts)
       .sort((a, b) => b[1] - a[1])
       .slice(0, 6)
-      .map(([dept, value]) => ({ label: (DEPT_ICON[dept] ?? "•") + " " + dept.replace(/_/g, " ").slice(0, 6), value, hint: `${value}` }));
-  }, [decisions]);
+      .map(([dept, value]) => ({ label: deptLabel(dept, lang), value, hint: `${value}` }));
+  }, [decisions, lang]);
 
-  const recent = useMemo(() => auditCalls.slice(-8).reverse(), [auditCalls]);
-  const overruled = useMemo(() => decisions.filter((d) => d.policy_overruled), [decisions]);
-  const stackCards = decisions.slice(0, 4);
+  const overviewCards = decisions;
 
-  /* ---------------- hero stats ---------------- */
-  const pendingApproval = decisions.filter((d) => d.approval_required && !approved.has(d.promise_id)).length;
+  /* ---------------- widgets ---------------- */
 
-  /* Single sweeping arc (300° with gap) showing status breakdown */
-  const ARC_R = 40;
-  const ARC_C = 2 * Math.PI * ARC_R;
-  const ARC_SWEEP = 300 / 360; // leave a 60° gap at the bottom
-  const arcSegments = useMemo(() => {
-    const buckets = [
-      { value: safe, color: "rgba(126,200,169,0.9)" },
-      { value: risk, color: "rgba(229,190,120,0.85)" },
-      { value: missing, color: "rgba(138,192,214,0.8)" },
-      { value: blocked, color: "rgba(229,138,148,0.85)" },
-    ].filter((b) => b.value > 0);
-    const sum = buckets.reduce((a, b) => a + b.value, 0) || 1;
-    let cursor = 0;
-    return buckets.map((b) => {
-      const frac = (b.value / sum) * ARC_SWEEP;
-      const seg = { ...b, start: cursor, frac };
-      cursor += frac;
-      return seg;
-    });
-  }, [safe, risk, missing, blocked, ARC_SWEEP]);
-
-  /* ---------------- widget bodies ---------------- */
-  const healthWidget = (
-    <WidgetCard title={zh ? "承诺健康度" : "Promise health"} accent="126,200,169" editing={editing} bodyClassName="p-3">
-      <div className="grad-mint relative flex h-full flex-col justify-between overflow-hidden rounded-2xl p-5 text-white">
-        <div>
-          <div className="flex items-end gap-2.5">
-            <CountUp value={healthPct} suffix="%" className="t-display" />
-            <span className="mb-1.5"><TrendPill value={safe} suffix={zh ? " 可执行" : " safe"} /></span>
-          </div>
-          <div className="mt-1.5 text-[13px] font-medium text-white/65">
-            {zh ? `${safe}/${total} 个承诺可安全执行` : `${safe} of ${total} promises safe to execute`}
-          </div>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <button onClick={onRunAudit} disabled={auditing} className="h-8 rounded-lg bg-white/92 px-3.5 text-xs font-semibold text-slate-950 transition active:scale-95 hover:bg-white disabled:opacity-50">
-            {auditing ? (zh ? "审查中…" : "Auditing…") : zh ? "运行承诺审查" : "Run audit"}
-          </button>
-          <button onClick={onTrace} disabled={tracing} className="h-8 rounded-lg border border-white/25 bg-white/12 px-3.5 text-xs font-semibold text-white transition active:scale-95 hover:bg-white/20 disabled:opacity-50">
-            {tracing ? (zh ? "追踪中…" : "Tracing…") : zh ? "追踪投诉" : "Trace"}
-          </button>
-        </div>
-      </div>
-    </WidgetCard>
-  );
-
-  const kpiWidget = (key: "atrisk" | "missing") => {
-    const isRisk = key === "atrisk";
-    const count = isRisk ? risk : missing;
-    return (
-      <WidgetCard
-        title={isRisk ? (zh ? "高风险 / 待审批" : "At risk / approval") : zh ? "缺信息" : "Missing info"}
-        accent={isRisk ? "229,190,120" : "138,192,214"}
-        editing={editing}
-        bodyClassName="p-4"
-      >
-        <div className="flex h-full flex-col">
-          <div className="flex items-start justify-between">
-            <CountUp value={count} className="t-metric block" />
-            <TrendPill value={isRisk ? risk : -missing} suffix="" />
-          </div>
-          <div className="t-caption mt-0.5">{isRisk ? (zh ? "需要经理判断" : "needs manager judgment") : zh ? "需客人/公司补充" : "guest / company follow-up"}</div>
-          {count > 0 && (
+  /* Promise overview = the old "Promise split" + "Promise cards" merged:
+     donut as the total view, cards as the quick-scan strip, legend filters both. */
+  const overviewWidget = (
+    <WidgetCard title={zh ? "承诺总览" : "Promise overview"} accent="126,200,169" editing={editing}>
+      <div className="flex h-full flex-col gap-4 lg:flex-row">
+        <div className="flex shrink-0 items-center gap-4">
+          <Donut
+            data={donutData.length ? donutData : [{ label: "—", value: 1, color: "rgba(255,255,255,0.12)" }]}
+            size={132}
+            thickness={10}
+            centerTop={<div className="t-caption">{zh ? "总数" : "Total"}</div>}
+            centerBottom={<CountUp value={total} className="t-metric" />}
+          />
+          <div className="space-y-0.5">
             <button
-              onClick={() => setDrillPanel(isRisk ? "atrisk" : "missing")}
+              onClick={() => setDrillPanel("all")}
               onMouseDown={(e) => editing && e.stopPropagation()}
-              className="mt-auto h-7 w-full shrink-0 rounded-lg border border-white/12 bg-white/[0.05] text-[11px] font-medium text-white/70 transition hover:bg-white/[0.1] hover:text-white"
+              className="flex h-7 w-full items-center justify-between gap-3 rounded-lg px-2 text-left transition hover:bg-white/[0.1]"
             >
-              {zh ? `查看全部 ${count} 条 →` : `View all ${count} →`}
+              <span className="text-[12.5px] text-white/80">{zh ? "全部" : "All"}</span>
+              <span className="tnum text-[13px] font-semibold text-white/90">{total} →</span>
             </button>
-          )}
-        </div>
-      </WidgetCard>
-    );
-  };
-
-  const splitWidget = (
-    <WidgetCard title={zh ? "承诺状态分布" : "Promise split"} accent="126,200,169" editing={editing}>
-      <div className="flex h-full items-center gap-4">
-        <Donut
-          data={donutData.length ? donutData : [{ label: "—", value: 1, color: "rgba(255,255,255,0.12)" }]}
-          thickness={10}
-          centerTop={<div className="t-caption">{zh ? "总数" : "Total"}</div>}
-          centerBottom={<CountUp value={total} className="t-metric" />}
-        />
-        <div className="flex-1 space-y-1">
-          {donutData.map((s) => (
-            <LegendRow key={s.label} color={s.color} label={s.label} value={s.value} />
-          ))}
-          {overrides > 0 && (
-            <div className="mt-2 flex items-center gap-2 rounded-lg border border-white/8 bg-white/[0.03] px-2.5 py-1.5 text-[11px] text-white/70">
-              <span className="h-1.5 w-1.5 rounded-full" style={{ background: "rgb(178,160,218)" }} />
-              {overrides} {zh ? "安全门改判" : "gate override(s)"}
-            </div>
-          )}
-        </div>
-      </div>
-    </WidgetCard>
-  );
-
-  const workloadWidget = (
-    <WidgetCard title={zh ? "部门承诺分布" : "Department workload"} accent="138,192,214" editing={editing}>
-      {deptBars.length ? <Bars data={deptBars} highlightIndex={0} height={150} /> : <div className="grid h-full place-items-center text-xs text-white/40">{zh ? "暂无数据" : "No data"}</div>}
-    </WidgetCard>
-  );
-
-  const workflowSummaryWidget = (
-    <WidgetCard
-      title={zh ? "Agent 工作流" : "Agent workflow"}
-      icon="✦"
-      accent="178,160,218"
-      editing={editing}
-      onExpand={() => setWorkflowOpen(true)}
-      expandLabel={zh ? "展开详情" : "Open"}
-    >
-      <div className="flex h-full flex-col">
-        <div className="mb-4 flex items-baseline gap-6">
-          <div>
-            <div className="t-label mb-0.5">{zh ? "阶段完成" : "Stages"}</div>
-            <div className="t-metric">{flowDone}<span className="text-[15px] font-normal text-white/38">/{flowTotal}</span></div>
-          </div>
-          <div>
-            <div className="t-label mb-0.5">{zh ? "告警" : "Alerts"}</div>
-            <div className={cx("t-metric", flowAlerts ? "!text-rose-300" : "!text-white/55")}>{flowAlerts}</div>
-          </div>
-        </div>
-        <div className="min-h-0 flex-1 space-y-1 overflow-auto">
-          {laneSummaries.map(({ d, pct, alerts }) => (
-            <button
-              key={d.promise_id}
-              onClick={() => onSelect(d)}
-              className="flex h-9 w-full items-center gap-2.5 rounded-lg px-2 text-left transition hover:bg-white/[0.05]"
-            >
-              <span className="tnum w-12 shrink-0 font-mono text-[10px] text-white/38">{d.promise_id}</span>
-              <span className="line-clamp-1 flex-1 text-[12.5px] text-white/70">{d.promise_text}</span>
-              <span className="h-1 w-14 shrink-0 overflow-hidden rounded-full bg-white/10">
-                <span className="block h-full rounded-full" style={{ width: `${pct}%`, background: alerts ? "rgb(229,138,148)" : "rgb(126,200,169)" }} />
-              </span>
-              {alerts > 0 && <span className="shrink-0 text-[11px] text-rose-300">⚠{alerts}</span>}
-            </button>
-          ))}
-        </div>
-      </div>
-    </WidgetCard>
-  );
-
-  const cardsWidget = (
-    <WidgetCard
-      title={zh ? "承诺卡组" : "Promise cards"}
-      accent="178,160,218"
-      editing={editing}
-      headerRight={<span className="text-[10px] text-white/40">{total}</span>}
-    >
-      <div className="flex h-full flex-col">
-        <div className="relative flex-1" style={{ minHeight: 150 }}>
-          {stackCards.map((d, i) => {
-            const depth = (i - stackTop + stackCards.length) % stackCards.length;
-            const grad = GRADIENTS[i % GRADIENTS.length];
-            return (
-              <motion.button
-                key={d.promise_id}
-                onClick={() => (depth === 0 ? onSelect(d) : setStackTop(i))}
+            {donutData.map((s) => (
+              <button
+                key={s.key}
+                onClick={() => setDrillPanel(BUCKET_DRILL[s.key])}
                 onMouseDown={(e) => editing && e.stopPropagation()}
-                animate={{ y: depth * 14, scale: 1 - depth * 0.05, opacity: depth > 2 ? 0 : 1, zIndex: 10 - depth }}
-                transition={{ duration: 0.4, ease: EASE }}
-                className={cx(grad, "absolute inset-x-0 top-0 overflow-hidden rounded-[20px] p-4 text-left text-white shadow-[0_24px_50px_-30px_rgba(0,0,0,0.9)]")}
-                style={{ height: 132 }}
+                className="flex h-7 w-full items-center justify-between gap-3 rounded-lg px-2 text-left transition hover:bg-white/[0.1]"
               >
-                <div className="relative flex items-start justify-between">
-                  <span className="font-mono text-[10px] text-white/55">{d.promise_id}</span>
-                  <span className="rounded-full border border-white/15 bg-white/12 px-2 py-0.5 text-[9px] font-semibold text-white/85">
-                    {DEPT_ICON[d.owner_department] ?? "•"} {d.owner_department.replace(/_/g, " ")}
-                  </span>
+                <span className="flex items-center gap-2.5">
+                  <span className="h-2 w-2 rounded-full" style={{ background: s.color }} />
+                  <span className="text-[12.5px] text-white/80">{s.label}</span>
+                </span>
+                <span className="tnum text-[13px] font-semibold text-white/90">{s.value} →</span>
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="flex min-w-0 flex-1 gap-2.5 overflow-x-auto pb-1">
+          {overviewCards.map((d) => {
+            const status = effectiveStatus(d, approved);
+            return (
+              <button
+                key={d.promise_id}
+                onClick={() => setDrillPanel(BUCKET_DRILL[bucketOf(status)])}
+                onMouseDown={(e) => editing && e.stopPropagation()}
+                className="glass-inset flex h-full w-[200px] shrink-0 flex-col justify-between rounded-2xl p-3.5 text-left transition hover:bg-white/[0.08]"
+              >
+                <div>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="flex items-center gap-1.5 text-[10px] font-medium text-white/55">
+                      <DeptIcon dept={d.owner_department} className="h-3 w-3" />
+                      {deptLabel(d.owner_department, lang)}
+                    </span>
+                  </div>
+                  <div className="mt-2 line-clamp-3 text-[12.5px] font-medium leading-5 text-white/90">{d.promise_text}</div>
                 </div>
-                <div className="relative mt-2 line-clamp-2 text-sm font-semibold leading-5 text-white">{d.promise_text}</div>
-                <div className="relative mt-3 flex items-center gap-2">
-                  <StatusBadge status={d.status} lang={lang} size="xs" />
-                  {d.policy_overruled && <span className="rounded-full border border-white/15 bg-white/12 px-2 py-0.5 text-[9px] font-semibold text-white/85">{zh ? "改判" : "override"}</span>}
+                <div className="mt-2.5">
+                  <StatusBadge status={status} lang={lang} size="xs" />
                 </div>
-              </motion.button>
+              </button>
             );
           })}
-        </div>
-        <div className="mt-2 flex justify-center gap-1.5">
-          {stackCards.map((d, i) => (
-            <button key={d.promise_id} onClick={() => setStackTop(i)} className={cx("h-1.5 rounded-full transition-all", i === stackTop ? "w-5 bg-white" : "w-1.5 bg-white/30")} />
-          ))}
+          {overviewCards.length === 0 && (
+            <div className="grid h-full w-full place-items-center text-xs text-white/38">
+              {zh ? "该状态下暂无承诺" : "No promises in this state"}
+            </div>
+          )}
         </div>
       </div>
     </WidgetCard>
@@ -391,10 +318,14 @@ export default function CommandWorkspace({
               onClick={() => onSelect(d)}
               className="flex h-11 cursor-pointer items-center gap-3 rounded-xl px-2.5 transition hover:bg-white/[0.05]"
             >
-              <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-white/[0.06] text-sm">{DEPT_ICON[d.owner_department] ?? "•"}</span>
+              <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-white/[0.06] text-white/70">
+                <DeptIcon dept={d.owner_department} />
+              </span>
               <div className="min-w-0 flex-1">
-                <div className="truncate text-[13px] font-medium text-white/90">{(plan?.action_type ?? "monitor").replace(/_/g, " ")}</div>
-                <div className="t-caption truncate">{task?.task_id ?? d.linked_task_id ?? d.promise_id} · {compactTime(plan?.due_at ?? task?.due_at)}</div>
+                <div className="truncate text-[13px] font-medium text-white/90">{actionLabel(plan?.action_type, lang)}</div>
+                <div className="t-caption truncate">
+                  {deptLabel(d.owner_department, lang)} · {compactTime(plan?.due_at ?? task?.due_at)}
+                </div>
               </div>
               {needsApproval ? (
                 <button
@@ -407,7 +338,7 @@ export default function CommandWorkspace({
                   {zh ? "批准" : "Approve"}
                 </button>
               ) : (
-                <StatusBadge status={d.status} lang={lang} size="xs" />
+                <StatusBadge status={effectiveStatus(d, approved)} lang={lang} size="xs" />
               )}
             </div>
           );
@@ -416,228 +347,38 @@ export default function CommandWorkspace({
     </WidgetCard>
   );
 
-  const freshnessWidget = (
-    <WidgetCard
-      title={zh ? "数据新鲜度闸门" : "Data freshness gate"}
-      accent={staleSources.length ? "229,138,148" : "126,200,169"}
-      editing={editing}
-      headerRight={
-        <span className={cx("rounded-full px-2 py-0.5 text-[9px] font-semibold", staleSources.length ? "bg-rose-400/15 text-rose-200" : "bg-emerald-400/15 text-emerald-200")}>
-          {staleSources.length ? `${staleSources.length} stale` : zh ? "全部新鲜" : "all fresh"}
-        </span>
-      }
-    >
-      <div className="space-y-0.5">
-        {freshness.map((f) => {
-          const stale = f.freshness_status === "stale";
-          return (
-            <button
-              key={f.source_name}
-              onClick={() => onToggleFreshness(f.source_name)}
-              onMouseDown={(e) => editing && e.stopPropagation()}
-              title={zh ? "点击切换新鲜/过期(演示)" : "Toggle fresh/stale (demo)"}
-              className="flex h-8 w-full items-center justify-between gap-2 rounded-lg px-2.5 transition hover:bg-white/[0.05]"
-            >
-              <span className={cx("truncate font-mono text-[12px]", stale ? "text-rose-300" : "text-white/65")}>{f.source_name}</span>
-              <span className="flex shrink-0 items-center gap-2.5">
-                <span className="tnum font-mono text-[11px] text-white/38">{f.age_minutes}/{f.max_allowed_age_minutes}m</span>
-                <span className={cx("h-1.5 w-1.5 rounded-full", stale ? "bg-rose-400" : "bg-emerald-400")} />
-              </span>
-            </button>
-          );
-        })}
-      </div>
+  const workloadWidget = (
+    <WidgetCard title={zh ? "部门承诺分布" : "Department workload"} accent="138,192,214" editing={editing}>
+      {deptBars.length ? (
+        <div className="flex h-full flex-col justify-center">
+          <Bars data={deptBars} highlightIndex={0} height={170} />
+        </div>
+      ) : (
+        <div className="grid h-full place-items-center text-xs text-white/40">{zh ? "暂无数据" : "No data"}</div>
+      )}
     </WidgetCard>
   );
 
-  /* ---------------- judge widgets ---------------- */
-  const workflowFullWidget = (
-    <WidgetCard
-      title={zh ? "Agent 工作流（完整）" : "Agent workflow (full)"}
-      icon="✦"
-      accent="178,160,218"
-      editing={editing}
-      onExpand={() => setWorkflowOpen(true)}
-      expandLabel={zh ? "全屏" : "Fullscreen"}
-    >
-      <AgentFlowGraph
-        decisions={decisions}
-        taskPlan={taskPlan}
-        freshness={freshness}
-        trace={trace}
-        selectedId={active?.promise_id}
-        onSelect={onSelect}
-        reasoningSource={reasoningSource}
-        approved={approved}
-        lang={lang}
-      />
-    </WidgetCard>
-  );
-
-  const pipelineWidget = (
-    <WidgetCard
-      title={zh ? "Agent 团队管线" : "Agent team pipeline"}
-      accent="138,192,214"
-      editing={editing}
-      headerRight={<span className="text-[10px] text-white/40">{agentTrace.filter((s) => s.status === "complete" || s.status === "fallback").length}/{agentTrace.length || 6}</span>}
-    >
-      <div className="grid gap-2.5 sm:grid-cols-2">
-        {agentTrace.map((s, i) => (
-          <div key={s.stage_id} className="glass-inset rounded-xl p-3.5">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className={cx("h-1.5 w-1.5 rounded-full", s.status === "complete" ? "bg-emerald-400" : s.status === "fallback" ? "bg-amber-400" : s.status === "pending" ? "bg-white/30" : "bg-white/15")} />
-                <span className="text-[12.5px] font-semibold text-white">{s.label}</span>
-              </div>
-              <span className="tnum font-mono text-[10px] text-white/30">{String(i + 1).padStart(2, "0")}</span>
-            </div>
-            <p className="mt-1.5 line-clamp-2 text-[11.5px] leading-4 text-white/50">{s.summary}</p>
-          </div>
-        ))}
-        {agentTrace.length === 0 && <div className="col-span-full grid h-24 place-items-center text-xs text-white/38">{zh ? "运行审查后显示" : "Run an audit"}</div>}
-      </div>
-    </WidgetCard>
-  );
-
-  const overridesWidget = (
-    <WidgetCard title={zh ? "安全门改判清单" : "Safety-gate overrides"} accent="178,160,218" editing={editing} headerRight={<span className="text-[10px] text-white/40">{overruled.length}</span>}>
-      <div className="space-y-1.5">
-        {overruled.map((d) => (
-          <button
-            key={d.promise_id}
-            onClick={() => onSelect(d)}
-            className="status-edge flex w-full items-center gap-3 rounded-xl bg-white/[0.03] py-2.5 pl-4 pr-3 text-left transition hover:bg-white/[0.06]"
-            style={{ "--edge": "167 139 250" } as React.CSSProperties}
-          >
-            <span className="font-mono text-[10px] text-white/38">{d.promise_id}</span>
-            <div className="min-w-0 flex-1">
-              <div className="truncate text-[12.5px] text-white/85">{d.promise_text}</div>
-              <div className="tnum text-[11px] text-violet-200/90">{d.agent_proposed_status} → {d.status}</div>
-            </div>
-          </button>
-        ))}
-        {overruled.length === 0 && <div className="grid h-20 place-items-center text-xs text-white/38">{zh ? "本次无改判" : "No overrides"}</div>}
-      </div>
-    </WidgetCard>
-  );
-
-  const toolsWidget = (
-    <WidgetCard title={zh ? "工具调用轨迹" : "Tool-call trail"} accent="138,192,214" editing={editing} headerRight={<span className="text-[10px] text-white/40">{auditCalls.length}</span>}>
-      <div className="space-y-0.5">
-        {recent.length === 0 && <div className="grid h-20 place-items-center text-xs text-white/38">{zh ? "运行审查后显示" : "Run an audit"}</div>}
-        {recent.map((c, i) => (
-          <div key={i} className="flex h-11 items-center gap-3 rounded-lg px-2 transition hover:bg-white/[0.04]">
-            <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-white/[0.06] text-sm">{toolIcon(c.tool_name)}</span>
-            <div className="min-w-0 flex-1">
-              <div className="truncate text-[13px] font-medium text-white/90">{toolLabel(c.tool_name)}</div>
-              <div className="t-caption truncate">{describeCall(c)}</div>
-            </div>
-          </div>
-        ))}
-      </div>
-    </WidgetCard>
-  );
-
-  const selfReviewWidget = (
-    <WidgetCard title={zh ? "Agent 自检与学习 (Arize)" : "Self-review & learning (Arize)"} accent="178,160,218" editing={editing}>
-      <SelfReview lang={lang} refreshKey={approved.size + auditCalls.length} bare />
-    </WidgetCard>
-  );
-
-  const evalWidget = (
-    <WidgetCard
-      title={zh ? "评测指标 (Golden Case)" : "Eval metrics (golden case)"}
-      icon="✓"
-      accent="126,200,169"
-      editing={editing}
-      bodyClassName="p-4"
-    >
-      <EvalMetricsCard bookingId={reservation?.booking_id ?? "BKG-2026-0718-ACME"} lang={lang} />
-    </WidgetCard>
-  );
-
-  const infoWidget = infoAnalysis ? (
-    <WidgetCard title={zh ? "信息分析" : "Info analysis"} accent="138,192,214" editing={editing}>
-      <div className="space-y-1">
-        <LegendRow color="rgb(138,192,214)" label={zh ? "范围" : "Scope"} value={infoAnalysis.intake_scope} />
-        <LegendRow color="rgb(178,160,218)" label={zh ? "基础信息" : "Basic info"} value={infoAnalysis.basic_info_status} />
-        <LegendRow color="rgb(126,200,169)" label={zh ? "额外项目" : "Extra items"} value={infoAnalysis.extra_items.length} />
-      </div>
-    </WidgetCard>
-  ) : null;
-
-  /* ---------------- layouts ---------------- */
   const managerItems: WidgetItem[] = [
-    { id: "health", node: healthWidget },
-    { id: "atrisk", node: kpiWidget("atrisk") },
-    { id: "missing", node: kpiWidget("missing") },
-    { id: "split", node: splitWidget },
-    { id: "workload", node: workloadWidget },
-    { id: "workflow", node: workflowSummaryWidget },
-    { id: "cards", node: cardsWidget },
+    { id: "overview", node: overviewWidget },
     { id: "tasks", node: tasksWidget },
-    { id: "freshness", node: freshnessWidget },
+    { id: "workload", node: workloadWidget },
   ];
 
   const managerLayouts: GLayouts = {
     lg: [
-      mn({ i: "health", x: 0, y: 0, w: 5, h: 10 }),
-      mn({ i: "atrisk", x: 5, y: 0, w: 3, h: 5 }),
-      mn({ i: "missing", x: 5, y: 5, w: 3, h: 5 }),
-      mn({ i: "split", x: 8, y: 0, w: 4, h: 10 }),
-      mn({ i: "workload", x: 0, y: 10, w: 5, h: 8 }),
-      mn({ i: "workflow", x: 5, y: 10, w: 7, h: 8 }),
-      mn({ i: "cards", x: 0, y: 17, w: 4, h: 9 }),
-      mn({ i: "tasks", x: 4, y: 17, w: 5, h: 9 }),
-      mn({ i: "freshness", x: 9, y: 17, w: 3, h: 9 }),
+      mn({ i: "overview", x: 0, y: 0, w: 12, h: 9 }),
+      mn({ i: "tasks", x: 0, y: 9, w: 7, h: 10 }),
+      mn({ i: "workload", x: 7, y: 9, w: 5, h: 10 }),
     ],
     sm: [
-      mn({ i: "health", x: 0, y: 0, w: 1, h: 8 }),
-      mn({ i: "atrisk", x: 0, y: 8, w: 1, h: 5 }),
-      mn({ i: "missing", x: 0, y: 13, w: 1, h: 5 }),
-      mn({ i: "split", x: 0, y: 18, w: 1, h: 9 }),
-      mn({ i: "workload", x: 0, y: 25, w: 1, h: 8 }),
-      mn({ i: "workflow", x: 0, y: 33, w: 1, h: 10 }),
-      mn({ i: "cards", x: 0, y: 43, w: 1, h: 9 }),
-      mn({ i: "tasks", x: 0, y: 52, w: 1, h: 10 }),
-      mn({ i: "freshness", x: 0, y: 62, w: 1, h: 9 }),
+      mn({ i: "overview", x: 0, y: 0, w: 1, h: 12 }),
+      mn({ i: "tasks", x: 0, y: 12, w: 1, h: 10 }),
+      mn({ i: "workload", x: 0, y: 22, w: 1, h: 8 }),
     ],
   };
 
-  const judgeItems: WidgetItem[] = [
-    { id: "workflow_full", node: workflowFullWidget },
-    { id: "eval", node: evalWidget },
-    { id: "pipeline", node: pipelineWidget },
-    { id: "overrides", node: overridesWidget },
-    { id: "tools", node: toolsWidget },
-    { id: "selfreview", node: selfReviewWidget },
-    ...(infoWidget ? [{ id: "info", node: infoWidget }] : []),
-  ];
-
-  const judgeLayouts: GLayouts = {
-    lg: [
-      mn({ i: "workflow_full", x: 0, y: 0, w: 12, h: 14 }),
-      mn({ i: "eval", x: 0, y: 14, w: 4, h: 13 }),
-      mn({ i: "pipeline", x: 4, y: 14, w: 8, h: 8 }),
-      mn({ i: "overrides", x: 4, y: 22, w: 8, h: 5 }),
-      mn({ i: "tools", x: 0, y: 27, w: 4, h: 10 }),
-      mn({ i: "selfreview", x: 4, y: 27, w: 5, h: 10 }),
-      mn({ i: "info", x: 9, y: 27, w: 3, h: 10 }),
-    ],
-    sm: [
-      mn({ i: "workflow_full", x: 0, y: 0, w: 1, h: 14 }),
-      mn({ i: "eval", x: 0, y: 14, w: 1, h: 13 }),
-      mn({ i: "pipeline", x: 0, y: 27, w: 1, h: 9 }),
-      mn({ i: "overrides", x: 0, y: 36, w: 1, h: 8 }),
-      mn({ i: "tools", x: 0, y: 44, w: 1, h: 10 }),
-      mn({ i: "selfreview", x: 0, y: 54, w: 1, h: 12 }),
-      mn({ i: "info", x: 0, y: 66, w: 1, h: 8 }),
-    ],
-  };
-
-  const isManager = mode === "manager";
-
-  /* ---------------- drill panel render ---------------- */
+  /* ---------------- drill panel ---------------- */
   const DRILL_ACCENT: Record<string, string> = {
     verifiable: "126,200,169", completed: "126,200,169", resolved: "126,200,169", task_created: "126,200,169",
     at_risk: "229,190,120", needs_approval: "229,190,120", approved: "178,160,218",
@@ -645,22 +386,55 @@ export default function CommandWorkspace({
     cannot_confirm: "229,138,148", conflict: "229,138,148", failed: "229,138,148",
   };
 
-  const drillDecisions = drillPanel === "atrisk"
-    ? decisions.filter((d) => ["at_risk", "needs_approval", "approved"].includes(d.status))
-    : drillPanel === "missing"
-    ? decisions.filter((d) => d.status === "missing_info")
-    : drillPanel === "blocked"
-    ? decisions.filter((d) => ["cannot_confirm", "conflict", "failed"].includes(d.status))
-    : drillPanel === "approval"
-    ? decisions.filter((d) => d.approval_required && !approved.has(d.promise_id))
-    : decisions;
+  const isPortfolioDrill = drillPanel?.startsWith("portfolio_") ?? false;
+  const drillDecisions =
+    drillPanel === "portfolio_all"
+      ? portfolioDecisions
+      : drillPanel === "portfolio_atrisk"
+      ? portfolioDecisions.filter((d) => ["at_risk", "needs_approval"].includes(d.status))
+      : drillPanel === "portfolio_missing"
+      ? portfolioDecisions.filter((d) => d.status === "missing_info")
+      : drillPanel === "portfolio_blocked"
+      ? portfolioDecisions.filter((d) => ["cannot_confirm", "conflict", "failed"].includes(d.status))
+      : drillPanel === "queue"
+      ? queue
+      : drillPanel === "atrisk"
+      ? decisions.filter((d) => ["at_risk", "needs_approval", "approved"].includes(d.status))
+      : drillPanel === "missing"
+      ? decisions.filter((d) => d.status === "missing_info")
+      : drillPanel === "blocked"
+      ? decisions.filter((d) => ["cannot_confirm", "conflict", "failed"].includes(d.status))
+      : drillPanel === "approval"
+      ? decisions.filter((d) => d.approval_required && !approved.has(d.promise_id))
+      : decisions;
 
   const drillTitle =
-    drillPanel === "atrisk" ? (zh ? `高风险 / 待审批 · ${drillDecisions.length}` : `At risk / Approval · ${drillDecisions.length}`)
+    drillPanel === "portfolio_all" ? (zh ? `全部预订承诺 · ${drillDecisions.length}` : `All booking promises · ${drillDecisions.length}`)
+    : drillPanel === "portfolio_atrisk" ? (zh ? `全部预订 · 风险承诺 · ${drillDecisions.length}` : `All bookings · at risk · ${drillDecisions.length}`)
+    : drillPanel === "portfolio_missing" ? (zh ? `全部预订 · 缺信息 · ${drillDecisions.length}` : `All bookings · missing info · ${drillDecisions.length}`)
+    : drillPanel === "portfolio_blocked" ? (zh ? `全部预订 · 阻塞 · ${drillDecisions.length}` : `All bookings · blocked · ${drillDecisions.length}`)
+    : drillPanel === "queue" ? (zh ? `待处理队列 · ${drillDecisions.length}` : `Pending queue · ${drillDecisions.length}`)
+    : drillPanel === "atrisk" ? (zh ? `高风险 / 待审批 · ${drillDecisions.length}` : `At risk / Approval · ${drillDecisions.length}`)
     : drillPanel === "missing" ? (zh ? `缺信息 · ${drillDecisions.length}` : `Missing info · ${drillDecisions.length}`)
     : drillPanel === "blocked" ? (zh ? `无法确认 · ${drillDecisions.length}` : `Blocked · ${drillDecisions.length}`)
     : drillPanel === "approval" ? (zh ? `待审批队列 · ${drillDecisions.length}` : `Approval queue · ${drillDecisions.length}`)
     : zh ? `全部承诺 · ${drillDecisions.length}` : `All promises · ${drillDecisions.length}`;
+
+  const drillFilters = isPortfolioDrill
+    ? ([
+        ["portfolio_all", zh ? "总数" : "Total"],
+        ["portfolio_atrisk", zh ? "风险" : "At risk"],
+        ["portfolio_missing", zh ? "缺信息" : "Missing"],
+        ["portfolio_blocked", zh ? "阻塞" : "Blocked"],
+      ] as const)
+    : ([
+        ["queue", zh ? "待处理" : "Queue"],
+        ["atrisk", zh ? "风险" : "Risk"],
+        ["approval", zh ? "待审批" : "Approval"],
+        ["missing", zh ? "缺信息" : "Missing"],
+        ["blocked", zh ? "阻塞" : "Blocked"],
+        ["all", zh ? "全部" : "All"],
+      ] as const);
 
   const drillPanelNode = drillPanel && (
     <motion.div
@@ -671,17 +445,16 @@ export default function CommandWorkspace({
       transition={{ duration: 0.22, ease: EASE }}
       className="space-y-3"
     >
-      {/* Drill header */}
       <div className="glass-lite flex items-center gap-4 px-5 py-3.5">
         <button
           onClick={() => setDrillPanel(null)}
-          className="flex h-8 items-center gap-1.5 rounded-xl border border-white/12 bg-white/[0.05] px-3 text-[12px] font-medium text-white/70 transition hover:bg-white/[0.1] hover:text-white"
+          className="flex h-8 items-center gap-1 rounded-xl border border-white/12 bg-white/[0.05] px-3 text-[12px] font-medium text-white/70 transition hover:bg-white/[0.1] hover:text-white"
         >
-          ← {zh ? "返回" : "Back"}
+          <ChevronLeft className="h-3.5 w-3.5" strokeWidth={1.75} /> {zh ? "返回" : "Back"}
         </button>
         <h2 className="t-title">{drillTitle}</h2>
         <div className="ml-auto flex gap-1">
-          {(["all", "atrisk", "approval", "missing", "blocked"] as const).map((key) => (
+          {drillFilters.map(([key, label]) => (
             <button
               key={key}
               onClick={() => setDrillPanel(key)}
@@ -690,17 +463,12 @@ export default function CommandWorkspace({
                 drillPanel === key ? "bg-white/15 text-white" : "text-white/45 hover:text-white"
               )}
             >
-              {key === "all" ? (zh ? "全部" : "All")
-                : key === "atrisk" ? (zh ? "风险" : "Risk")
-                : key === "approval" ? (zh ? "待审批" : "Approval")
-                : key === "missing" ? (zh ? "缺信息" : "Missing")
-                : zh ? "阻塞" : "Blocked"}
+              {label}
             </button>
           ))}
         </div>
       </div>
 
-      {/* Promise cards */}
       {drillDecisions.length === 0 ? (
         <div className="glass-lite grid h-40 place-items-center text-sm text-white/40">
           {zh ? "暂无此类承诺" : "No promises in this category"}
@@ -709,8 +477,11 @@ export default function CommandWorkspace({
         <div className="space-y-2.5">
           {drillDecisions.map((d) => {
             const accentRgb = DRILL_ACCENT[d.status] ?? "148,163,184";
-            const needsApprove = d.approval_required && !approved.has(d.promise_id);
+            const sameBooking = d.booking_id === bookingId;
+            const displayApproved = sameBooking ? approved : NO_APPROVALS;
+            const needsApprove = sameBooking && d.approval_required && !approved.has(d.promise_id);
             const extraItem = (infoAnalysis?.extra_items ?? []).find((e) => e.item_id === d.promise_id);
+            const sourceBookingName = bookingNameById.get(d.booking_id);
             return (
               <motion.div
                 key={d.promise_id}
@@ -720,73 +491,60 @@ export default function CommandWorkspace({
                 style={{ "--edge": accentRgb.replace(/,/g, " ") } as React.CSSProperties}
               >
                 <div className="flex flex-wrap items-start justify-between gap-3">
-                  {/* Left: promise info */}
+                  {/* Left: title + current state (risk merged with the workable path) + owning dept */}
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-mono text-[10px] text-white/35">{d.promise_id}</span>
-                      <StatusBadge status={d.status} lang={lang} size="xs" />
-                      {d.policy_overruled && (
-                        <span className="rounded-full border border-violet-300/25 bg-violet-400/12 px-2 py-0.5 text-[9px] font-semibold text-violet-200">
-                          {zh ? "安全门改判" : "gate override"}
+                      <StatusBadge status={effectiveStatus(d, displayApproved)} lang={lang} size="xs" />
+                      {isPortfolioDrill && sourceBookingName && (
+                        <span className="rounded bg-white/[0.06] px-2 py-0.5 text-[10px] text-white/60">
+                          {sourceBookingName}
                         </span>
                       )}
+                      <span className="flex items-center gap-1.5 rounded bg-white/[0.06] px-2 py-0.5 text-[10px] text-white/60">
+                        <DeptIcon dept={d.owner_department} className="h-3 w-3" />
+                        {deptLabel(d.owner_department, lang)}
+                      </span>
                     </div>
                     <p className="mt-2 text-[14px] font-semibold leading-snug text-white">{d.promise_text}</p>
                     {d.evidence[0] && (
-                      <p className="mt-1.5 text-[12px] leading-5 text-white/50">
-                        <span className="mr-1 text-white/25">›</span>{d.evidence[0]}
+                      <p className="mt-1.5 text-[12px] leading-5 text-white/55">
+                        {humanizeOpsText(d.evidence[0], lang)}
                       </p>
                     )}
                     {d.risk_reason && (
                       <p className="mt-1 text-[11.5px] text-white/40">
-                        {zh ? "风险：" : "Risk: "}{d.risk_reason}
+                        {zh ? "风险：" : "Risk: "}{humanizeOpsText(d.risk_reason, lang)}
                       </p>
                     )}
                     {extraItem?.missing_fields && extraItem.missing_fields.length > 0 && (
                       <p className="mt-1 text-[11.5px] text-cyan-200/70">
-                        {zh ? "缺失字段：" : "Missing: "}{extraItem.missing_fields.join(", ")}
+                        {zh ? "待补：" : "Needs: "}
+                        {extraItem.missing_fields.map((f) => fieldLabel(f, lang)).join(zh ? "、" : ", ")}
                       </p>
                     )}
-                    <div className="mt-2 flex flex-wrap gap-1.5">
-                      {d.promise_type.map((pt) => (
-                        <span key={pt} className="rounded bg-white/[0.06] px-2 py-0.5 text-[10px] text-white/50">
-                          {pt.replace(/_/g, " ")}
-                        </span>
-                      ))}
-                      <span className="rounded bg-white/[0.06] px-2 py-0.5 text-[10px] text-white/50">
-                        {DEPT_ICON[d.owner_department] ?? "•"} {d.owner_department.replace(/_/g, " ")}
-                      </span>
-                    </div>
                   </div>
 
-                  {/* Right: action buttons */}
+                  {/* Right: the manager's next click — one verb per status */}
                   <div className="flex shrink-0 flex-col items-end gap-2">
                     {needsApprove && (
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => onApprove(d.promise_id)}
-                          className="h-9 rounded-xl bg-white/90 px-5 text-[12px] font-semibold text-slate-950 transition hover:bg-white active:scale-95"
-                        >
-                          {zh ? "批准" : "Approve"}
-                        </button>
-                        {drillPanel === "approval" && (
-                          <button
-                            onClick={() => onSelect(d)}
-                            className="h-9 rounded-xl border border-rose-300/30 bg-rose-400/12 px-4 text-[12px] font-semibold text-rose-100 transition hover:bg-rose-400/18 active:scale-95"
-                          >
-                            {zh ? "改判" : "Override"}
-                          </button>
-                        )}
-                      </div>
+                      <button
+                        onClick={() => onApprove(d.promise_id)}
+                        className="h-9 rounded-xl bg-white/90 px-5 text-[12px] font-semibold text-slate-950 transition hover:bg-white active:scale-95"
+                      >
+                        {zh ? "批准" : "Approve"}
+                      </button>
                     )}
-                    {approved.has(d.promise_id) && (
+                    {displayApproved.has(d.promise_id) && (
                       <span className="rounded-full border border-violet-300/30 bg-violet-400/12 px-3 py-1.5 text-[11px] font-semibold text-violet-100">
                         {zh ? "✓ 已批准" : "✓ Approved"}
                       </span>
                     )}
                     {(d.status === "cannot_confirm" || d.status === "conflict") && (
                       <button
-                        onClick={() => onSelect(d)}
+                        onClick={() => {
+                          if (d.booking_id !== bookingId) onBooking(d.booking_id);
+                          onSelect(d);
+                        }}
                         className="h-9 rounded-xl border border-rose-300/30 bg-rose-400/12 px-5 text-[12px] font-semibold text-rose-100 transition hover:bg-rose-400/18 active:scale-95"
                       >
                         {zh ? "上报" : "Escalate"}
@@ -794,28 +552,26 @@ export default function CommandWorkspace({
                     )}
                     {d.status === "missing_info" && (
                       <button
-                        onClick={() => onSelect(d)}
+                        onClick={() => {
+                          if (d.booking_id !== bookingId) onBooking(d.booking_id);
+                          onSelect(d);
+                        }}
                         className="h-9 rounded-xl border border-cyan-300/30 bg-cyan-400/12 px-5 text-[12px] font-semibold text-cyan-100 transition hover:bg-cyan-400/18 active:scale-95"
                       >
                         {zh ? "发起跟进" : "Follow up"}
                       </button>
                     )}
                     <button
-                      onClick={() => onSelect(d)}
+                      onClick={() => {
+                        if (d.booking_id !== bookingId) onBooking(d.booking_id);
+                        onSelect(d);
+                      }}
                       className="h-8 rounded-xl border border-white/10 bg-white/[0.05] px-4 text-[11px] font-medium text-white/60 transition hover:bg-white/[0.1] hover:text-white"
                     >
                       {zh ? "查看详情 →" : "Details →"}
                     </button>
                   </div>
                 </div>
-
-                {/* Recommended action */}
-                {d.recommended_action && (
-                  <div className="mt-3 rounded-xl border border-white/[0.06] bg-white/[0.025] px-3.5 py-2.5 text-[12px] leading-5 text-white/55">
-                    <span className="mr-1.5 font-semibold text-white/35">{zh ? "建议：" : "Action:"}</span>
-                    {d.recommended_action}
-                  </div>
-                )}
               </motion.div>
             );
           })}
@@ -824,21 +580,31 @@ export default function CommandWorkspace({
     </motion.div>
   );
 
+  const basicInfoOk = infoAnalysis ? /complete|ok/i.test(infoAnalysis.basic_info_status) : null;
+
   return (
     <div className="space-y-4">
       {/* ---------------- Toolbar ---------------- */}
       <div className="glass-lite flex flex-wrap items-center justify-between gap-3 px-5 py-3.5">
         <div>
-          <h1 className="t-title">{zh ? "经理指挥台" : "Manager Command Deck"}</h1>
-          <p className="t-caption mt-0.5">
-            {reservation ? `${reservation.company_name} · ${reservation.room_count} ${zh ? "间房" : "rooms"} · ${reservation.arrival_date}` : zh ? "加载中…" : "Loading…"}
+          <h1 className="t-title">{zh ? "经理工作台" : "Manager Workspace"}</h1>
+          <p className="t-caption mt-0.5 flex flex-wrap items-center gap-2">
+            <span>
+              {reservation ? `${reservation.company_name} · ${reservation.room_count} ${zh ? "间房" : "rooms"} · ${reservation.arrival_date}` : zh ? "加载中…" : "Loading…"}
+            </span>
+            {basicInfoOk !== null && (
+              <span
+                className={cx(
+                  "rounded-full border px-2 py-0.5 text-[9px] font-semibold",
+                  basicInfoOk ? "border-emerald-300/25 bg-emerald-400/10 text-emerald-200" : "border-amber-300/25 bg-amber-400/10 text-amber-200"
+                )}
+              >
+                {zh ? (basicInfoOk ? "基础信息完整" : "基础信息待补") : basicInfoOk ? "Basic info complete" : "Basic info incomplete"}
+              </span>
+            )}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <div className="flex h-8 items-center rounded-xl border border-white/10 bg-white/[0.04] p-0.5 text-[11px] font-medium text-white/55">
-            <button onClick={() => onMode("manager")} className={cx("h-7 rounded-[10px] px-3 transition", isManager ? "bg-white/90 text-slate-950" : "hover:text-white")}>{zh ? "经理视图" : "Manager"}</button>
-            <button onClick={() => onMode("trace")} className={cx("h-7 rounded-[10px] px-3 transition", !isManager ? "bg-white/90 text-slate-950" : "hover:text-white")}>{zh ? "评委追踪" : "Judge"}</button>
-          </div>
           <button
             onClick={() => setEditing((v) => !v)}
             className={cx("btn", editing ? "btn-primary" : "btn-glass")}
@@ -849,99 +615,148 @@ export default function CommandWorkspace({
           {editing && (
             <button onClick={() => setResetNonce((n) => n + 1)} className="btn btn-glass">{zh ? "重置布局" : "Reset"}</button>
           )}
-          <button onClick={onRunAudit} disabled={auditing} className="btn btn-primary disabled:opacity-50">{auditing ? (zh ? "审查中…" : "Auditing…") : zh ? "运行审查" : "Run audit"}</button>
-          <button onClick={onTrace} disabled={tracing} className="btn btn-danger disabled:opacity-50">{tracing ? (zh ? "追踪中…" : "Tracing…") : zh ? "追踪投诉" : "Trace"}</button>
         </div>
       </div>
 
-      {/* ---------------- Hero row — three clickable stat cards ---------------- */}
-      {!drillPanel && (
-        <div className="grid gap-4 sm:grid-cols-3">
-          {/* 1 · Promises — count + sweeping status arc */}
-          <button
-            onClick={() => setDrillPanel("all")}
-            className="glass card-safe lift flex items-center justify-between gap-4 rounded-[20px] p-6 text-left"
-          >
-            <div>
-              <CountUp value={total} className="t-hero block" />
-              <div className="t-label mt-2">{zh ? "承诺" : "Promises"}</div>
-              {flowAlerts > 0 && (
-                <div className="t-caption mt-1">{flowAlerts} {zh ? "处工作流告警" : "workflow alerts"}</div>
+      {/* ---------------- Section 1 · whole hotel, agent-prioritized ---------------- */}
+      {!drillPanel && portfolio.length > 0 && (
+        <div className="space-y-2.5">
+          <div className="flex items-baseline justify-between px-1">
+            <h2 className="t-label">{zh ? "全部预订 · 承诺总览" : "All bookings · promise overview"}</h2>
+            <span className="t-caption">{zh ? "点击任一指标查看承诺列表" : "click a metric to open the promise list"}</span>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            {[
+              {
+                key: "portfolio_all" as const,
+                label: zh ? "承诺总数" : "Total promises",
+                value: portfolioCounts.total,
+                hint: zh ? `${portfolio.length} 个预订` : `${portfolio.length} bookings`,
+                tone: "126,200,169",
+              },
+              {
+                key: "portfolio_atrisk" as const,
+                label: zh ? "At risk" : "At risk",
+                value: portfolioCounts.risk,
+                hint: zh ? "需要审批或先锁资源" : "approval or resource lock needed",
+                tone: "244,196,110",
+              },
+              {
+                key: "portfolio_missing" as const,
+                label: zh ? "Missing info" : "Missing info",
+                value: portfolioCounts.missing,
+                hint: zh ? "先向客人补字段" : "guest details needed before action",
+                tone: "126,200,236",
+              },
+              {
+                key: "portfolio_blocked" as const,
+                label: zh ? "Blocked" : "Blocked",
+                value: portfolioCounts.blocked,
+                hint: zh ? "现在不能承诺" : "cannot be promised yet",
+                tone: "246,142,158",
+              },
+            ].map((card) => (
+              <button
+                key={card.key}
+                onClick={() => setDrillPanel(card.key)}
+                className="glass lift flex min-h-[132px] flex-col justify-between rounded-[20px] p-4 text-left transition hover:bg-white/[0.08]"
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <span className="t-label">{card.label}</span>
+                  <span className="h-2 w-2 rounded-full" style={{ background: `rgb(${card.tone})` }} />
+                </div>
+                <CountUp value={card.value} className="t-display block" />
+                <div className="t-caption">{card.hint}</div>
+              </button>
+            ))}
+          </div>
+          <div className="flex flex-wrap items-center gap-2 px-1 pt-2">
+            <h2 className="t-label">{zh ? "已选预订" : "Selected booking"}</h2>
+            <select
+              value={bookingId}
+              onChange={(e) => onBooking(e.target.value)}
+              title={zh ? "切换预订" : "Switch booking"}
+              className="select-glass"
+            >
+              {bookings.length === 0 ? (
+                <option value={bookingId}>{reservation?.company_name ?? bookingId}</option>
+              ) : (
+                bookings.map((b) => (
+                  <option key={b.booking_id} value={b.booking_id}>
+                    {bookingLabel(b)}
+                  </option>
+                ))
               )}
-            </div>
-            <svg viewBox="0 0 100 100" className="h-[88px] w-[88px] shrink-0 -rotate-90" aria-hidden>
-              <circle cx="50" cy="50" r={ARC_R} fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="4.5"
-                strokeDasharray={`${ARC_C * ARC_SWEEP} ${ARC_C}`} strokeLinecap="round"
-                transform="rotate(-60 50 50)" />
-              {arcSegments.map((s, i) => (
-                <circle key={i} cx="50" cy="50" r={ARC_R} fill="none" stroke={s.color} strokeWidth="4.5"
-                  strokeDasharray={`${Math.max(ARC_C * s.frac - 3, 1)} ${ARC_C}`} strokeLinecap="round"
-                  transform={`rotate(${-60 + s.start * 360} 50 50)`}
-                  style={{ transition: "stroke-dasharray 0.6s cubic-bezier(0.22,1,0.36,1)" }} />
-              ))}
-            </svg>
-          </button>
+            </select>
+            <span className="t-caption">{bookingId}</span>
+          </div>
+        </div>
+      )}
 
-          {/* 2 · At Risk — warm light bleed when > 0 */}
-          <button
-            onClick={() => risk > 0 && setDrillPanel("atrisk")}
-            className={cx("glass lift flex flex-col justify-between rounded-[20px] p-6 text-left", risk > 0 ? "card-atrisk" : "card-safe")}
-          >
-            <div className="flex items-center justify-between">
-              <span className="t-label">{zh ? "高风险" : "At Risk"}</span>
-              <span className="h-[6px] w-[6px] rounded-full" style={{ background: risk > 0 ? "rgb(244 196 110)" : "rgba(255,255,255,0.25)", boxShadow: risk > 0 ? "0 0 10px rgb(244 196 110)" : "none" }} />
-            </div>
-            <div>
-              <CountUp value={risk} className="t-hero block" />
-              <div className="t-caption mt-2">{risk > 0 ? (zh ? "点击逐条处理 →" : "click to act →") : zh ? "无风险承诺" : "nothing at risk"}</div>
-            </div>
-          </button>
-
-          {/* 3 · Pending Approval */}
-          <button
-            onClick={() => pendingApproval > 0 && setDrillPanel("approval")}
-            className={cx("glass lift flex flex-col justify-between rounded-[20px] p-6 text-left", pendingApproval > 0 ? "card-atrisk" : "card-safe")}
-          >
-            <div className="flex items-center justify-between">
-              <span className="t-label">{zh ? "待审批" : "Pending Approval"}</span>
-              <span className="h-[6px] w-[6px] rounded-full" style={{ background: pendingApproval > 0 ? "rgb(244 196 110)" : "rgba(255,255,255,0.25)", boxShadow: pendingApproval > 0 ? "0 0 10px rgb(244 196 110)" : "none" }} />
-            </div>
-            <div>
-              <CountUp value={pendingApproval} className="t-hero block" />
-              <div className="t-caption mt-2">{pendingApproval > 0 ? (zh ? "点击批准 / 改判 →" : "click to approve / override →") : zh ? "审批队列为空" : "approval queue clear"}</div>
-            </div>
+      {/* ---------------- Contextual freshness notice (replaces the old gate board) ---------------- */}
+      {staleSources.length > 0 && (
+        <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-amber-300/25 bg-amber-400/[0.08] px-4 py-3">
+          <AlertTriangle className="h-4 w-4 shrink-0 text-amber-300" strokeWidth={1.75} />
+          <p className="min-w-0 flex-1 text-[12.5px] leading-5 text-amber-100/90">
+            {zh
+              ? `${staleSources.length} 个数据源已过期（${staleSources.map((s) => fieldLabel(s.source_name, lang)).join("、")}）— 审计结果已自动降级，处理前建议重新运行审查。`
+              : `${staleSources.length} data source(s) out of date (${staleSources.map((s) => fieldLabel(s.source_name, lang)).join(", ")}) — audit results were automatically downgraded. Re-run the audit before acting.`}
+          </p>
+          <button onClick={onRunAudit} disabled={auditing} className="btn btn-glass shrink-0 disabled:opacity-50">
+            {auditing ? (zh ? "审查中…" : "Auditing…") : zh ? "重新审查" : "Re-run audit"}
           </button>
         </div>
       )}
 
-      {/* ---------------- Drill panel or Widget grid ---------------- */}
-      {drillPanel ? drillPanelNode : isManager ? (
-        <WidgetGrid key="manager" storageKey="stayops:layout:manager:v2" editing={editing} resetNonce={resetNonce} defaultLayouts={managerLayouts} items={managerItems} />
-      ) : (
-        <WidgetGrid key="judge" storageKey="stayops:layout:judge:v2" editing={editing} resetNonce={resetNonce} defaultLayouts={judgeLayouts} items={judgeItems} />
+      {/* ---------------- Hero — ONE pending queue ---------------- */}
+      {!drillPanel && (
+        <button
+          onClick={() => setDrillPanel("queue")}
+          className={cx(
+            "glass lift flex w-full flex-wrap items-center justify-between gap-5 rounded-[20px] p-6 text-left",
+            queue.length > 0 ? "card-atrisk" : "card-safe"
+          )}
+        >
+          <div className="flex items-center gap-5">
+            <CountUp value={queue.length} className="t-hero block" />
+            <div>
+              <div className="t-label">{zh ? "待处理队列" : "Pending queue"}</div>
+              <div className="t-caption mt-1">
+                {queue.length > 0
+                  ? zh ? "这些承诺现在需要你 — 点击逐条处理 →" : "These promises need you now — click to act →"
+                  : zh ? "全部承诺都在安全轨道上" : "every promise is on a safe track"}
+              </div>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {pendingApproval > 0 && (
+              <span className="rounded-full border border-amber-300/25 bg-amber-400/10 px-3 py-1 text-[11px] font-medium text-amber-100">
+                {zh ? `待审批 ${pendingApproval}` : `Approval ${pendingApproval}`}
+              </span>
+            )}
+            {queueRisk > 0 && (
+              <span className="rounded-full border border-amber-300/25 bg-amber-400/10 px-3 py-1 text-[11px] font-medium text-amber-100">
+                {zh ? `高风险 ${queueRisk}` : `At risk ${queueRisk}`}
+              </span>
+            )}
+            {queueMissing > 0 && (
+              <span className="rounded-full border border-cyan-300/25 bg-cyan-400/10 px-3 py-1 text-[11px] font-medium text-cyan-100">
+                {zh ? `缺信息 ${queueMissing}` : `Missing ${queueMissing}`}
+              </span>
+            )}
+            {queueBlocked > 0 && (
+              <span className="rounded-full border border-rose-300/25 bg-rose-400/10 px-3 py-1 text-[11px] font-medium text-rose-100">
+                {zh ? `无法确认 ${queueBlocked}` : `Blocked ${queueBlocked}`}
+              </span>
+            )}
+          </div>
+        </button>
       )}
 
-      {/* ---------------- Workflow modal ---------------- */}
-      <Modal
-        open={workflowOpen}
-        onClose={() => setWorkflowOpen(false)}
-        title={zh ? "Agent 工作流 — 实时进度" : "Agent Workflow — live progress"}
-        subtitle={zh ? "每条泳道是一个承诺从接收到恢复的真实进度；绿色完成，红色告警，紫色安全门改判。" : "Each lane is one promise's real progress; green = done, red = alert, violet = gate override."}
-      >
-        <div className="h-[64vh]">
-          <AgentFlowGraph
-            decisions={decisions}
-            taskPlan={taskPlan}
-            freshness={freshness}
-            trace={trace}
-            selectedId={active?.promise_id}
-            onSelect={onSelect}
-            reasoningSource={reasoningSource}
-            approved={approved}
-            lang={lang}
-          />
-        </div>
-      </Modal>
+      {/* ---------------- Drill panel or widget grid ---------------- */}
+      {drillPanel ? drillPanelNode : (
+        <WidgetGrid key="manager" storageKey="stayops:layout:manager:v3" editing={editing} resetNonce={resetNonce} defaultLayouts={managerLayouts} items={managerItems} />
+      )}
     </div>
   );
 }
