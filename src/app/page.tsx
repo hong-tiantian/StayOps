@@ -192,7 +192,10 @@ export default function Page() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ hotel_id }),
       });
-      await runAudit(false);
+      // Silent re-audit: refresh decisions under the new persona WITHOUT
+      // yanking the user back to the dashboard (they may be mid-task in
+      // Hotel Brain or Email Intake).
+      await runAudit(true);
     },
     [runAudit]
   );

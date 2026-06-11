@@ -55,10 +55,12 @@ function Node({
       className={cx(
         "status-edge relative w-[148px] shrink-0 overflow-hidden rounded-xl border p-2.5 pl-3.5 transition",
         pulse,
-        done ? "bg-white/[0.045]" : "bg-white/[0.02]"
+        // Solid-enough dark base: pipeline nodes must stay readable over ANY
+        // photographic sky, with or without backdrop blur support.
+        done ? "bg-[rgba(10,18,24,0.62)]" : "bg-[rgba(10,18,24,0.45)]"
       )}
       style={{
-        borderColor: emphasized ? `rgba(${rgb},0.4)` : "rgba(255,255,255,0.08)",
+        borderColor: emphasized ? `rgba(${rgb},0.4)` : "rgba(255,255,255,0.14)",
         ["--edge" as string]: rgb.replace(/,/g, " "),
       }}
     >

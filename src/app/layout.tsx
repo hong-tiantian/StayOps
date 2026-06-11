@@ -4,6 +4,7 @@ import "react-grid-layout/css/styles.css";
 import "react-resizable/css/styles.css";
 import "./globals.css";
 import CursorGlow from "@/components/CursorGlow";
+import SkyCanvas from "@/components/SkyCanvas";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -21,8 +22,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className={inter.variable}>
       <body>
-        <div className="sky-calm" aria-hidden />
-        {/* Living light — two slow-drifting bloom layers above the weather sky */}
+        {/* Photographic sky: weather pools + rotation + manual shuffle */}
+        <SkyCanvas />
+        {/* Living light — two slow-drifting bloom layers above the sky */}
         <div className="sky-drift" aria-hidden />
         <CursorGlow />
         <div className="relative z-[1]">{children}</div>

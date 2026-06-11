@@ -205,21 +205,21 @@ export default function CommandWorkspace({
   /* ---------------- widget bodies ---------------- */
   const healthWidget = (
     <WidgetCard title={zh ? "承诺健康度" : "Promise health"} accent="126,200,169" editing={editing} bodyClassName="p-3">
-      <div className="grad-mint relative flex h-full flex-col justify-between overflow-hidden rounded-2xl p-5 text-slate-950">
+      <div className="grad-mint relative flex h-full flex-col justify-between overflow-hidden rounded-2xl p-5 text-white">
         <div>
           <div className="flex items-end gap-2.5">
-            <CountUp value={healthPct} suffix="%" className="t-display !text-slate-950" />
+            <CountUp value={healthPct} suffix="%" className="t-display" />
             <span className="mb-1.5"><TrendPill value={safe} suffix={zh ? " 可执行" : " safe"} /></span>
           </div>
-          <div className="mt-1.5 text-[13px] font-medium text-slate-900/70">
+          <div className="mt-1.5 text-[13px] font-medium text-white/65">
             {zh ? `${safe}/${total} 个承诺可安全执行` : `${safe} of ${total} promises safe to execute`}
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
-          <button onClick={onRunAudit} disabled={auditing} className="h-8 rounded-lg bg-slate-950 px-3.5 text-xs font-semibold text-white transition active:scale-95 disabled:opacity-50">
+          <button onClick={onRunAudit} disabled={auditing} className="h-8 rounded-lg bg-white/92 px-3.5 text-xs font-semibold text-slate-950 transition active:scale-95 hover:bg-white disabled:opacity-50">
             {auditing ? (zh ? "审查中…" : "Auditing…") : zh ? "运行承诺审查" : "Run audit"}
           </button>
-          <button onClick={onTrace} disabled={tracing} className="h-8 rounded-lg bg-white/85 px-3.5 text-xs font-semibold text-slate-950 transition active:scale-95 disabled:opacity-50">
+          <button onClick={onTrace} disabled={tracing} className="h-8 rounded-lg border border-white/25 bg-white/12 px-3.5 text-xs font-semibold text-white transition active:scale-95 hover:bg-white/20 disabled:opacity-50">
             {tracing ? (zh ? "追踪中…" : "Tracing…") : zh ? "追踪投诉" : "Trace"}
           </button>
         </div>
@@ -346,19 +346,19 @@ export default function CommandWorkspace({
                 onMouseDown={(e) => editing && e.stopPropagation()}
                 animate={{ y: depth * 14, scale: 1 - depth * 0.05, opacity: depth > 2 ? 0 : 1, zIndex: 10 - depth }}
                 transition={{ duration: 0.4, ease: EASE }}
-                className={cx(grad, "absolute inset-x-0 top-0 overflow-hidden rounded-[20px] p-4 text-left text-slate-950 shadow-[0_24px_50px_-30px_rgba(0,0,0,0.9)]")}
+                className={cx(grad, "absolute inset-x-0 top-0 overflow-hidden rounded-[20px] p-4 text-left text-white shadow-[0_24px_50px_-30px_rgba(0,0,0,0.9)]")}
                 style={{ height: 132 }}
               >
                 <div className="relative flex items-start justify-between">
-                  <span className="font-mono text-[10px] text-slate-900/70">{d.promise_id}</span>
-                  <span className="rounded-full bg-slate-950/15 px-2 py-0.5 text-[9px] font-semibold text-slate-900">
+                  <span className="font-mono text-[10px] text-white/55">{d.promise_id}</span>
+                  <span className="rounded-full border border-white/15 bg-white/12 px-2 py-0.5 text-[9px] font-semibold text-white/85">
                     {DEPT_ICON[d.owner_department] ?? "•"} {d.owner_department.replace(/_/g, " ")}
                   </span>
                 </div>
-                <div className="relative mt-2 line-clamp-2 text-sm font-semibold leading-5 text-slate-950">{d.promise_text}</div>
+                <div className="relative mt-2 line-clamp-2 text-sm font-semibold leading-5 text-white">{d.promise_text}</div>
                 <div className="relative mt-3 flex items-center gap-2">
                   <StatusBadge status={d.status} lang={lang} size="xs" />
-                  {d.policy_overruled && <span className="rounded-full bg-slate-950/15 px-2 py-0.5 text-[9px] font-semibold text-slate-900">{zh ? "改判" : "override"}</span>}
+                  {d.policy_overruled && <span className="rounded-full border border-white/15 bg-white/12 px-2 py-0.5 text-[9px] font-semibold text-white/85">{zh ? "改判" : "override"}</span>}
                 </div>
               </motion.button>
             );

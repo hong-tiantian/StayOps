@@ -46,12 +46,17 @@
   --card-stroke: rgba(255, 255, 255, 0.22);
   --card-radius: 24px;
   --noise: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E");
-  --shadow-card: 0 2px 6px rgba(4, 10, 12, 0.35), 0 50px 110px -42px rgba(4, 10, 12, 0.6);
+  --shadow-card: 0 3px 8px rgba(4, 10, 12, 0.4), 0 56px 120px -42px rgba(4, 10, 12, 0.68);
+  /* THICK glass: a hard specular top line + a soft secondary highlight under
+     it (the bevel), faint side walls, and a dark refracted bottom edge —
+     the cues the eye reads as physical pane depth. */
   --edge-light:
-    inset 0 1px 0 rgba(255, 255, 255, 0.52),
-    inset 1px 0 0 rgba(255, 255, 255, 0.14),
-    inset -1px 0 0 rgba(255, 255, 255, 0.1),
-    inset 0 -1px 0 rgba(255, 255, 255, 0.08);
+    inset 0 1px 0 rgba(255, 255, 255, 0.55),
+    inset 0 3px 10px -4px rgba(255, 255, 255, 0.34),
+    inset 1px 0 0 rgba(255, 255, 255, 0.16),
+    inset -1px 0 0 rgba(255, 255, 255, 0.12),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.1),
+    inset 0 -12px 24px -18px rgba(4, 10, 14, 0.55);
 
   /* Legacy aliases (kept for compatibility) — remapped to the luminous family */
   --ink: 237 240 252;
@@ -102,66 +107,61 @@ body {
   background: transparent;
 }
 
-/* Three fixed sky layers, crossfaded by opacity — gradients can't interpolate,
-   opacity can. The visible layer is the primary status indicator. Each layer
-   is a LIVING garden of light: several saturated organic blooms over a deep
-   base, so the glass above has real color to refract. */
-body::before,
-body::after,
-.sky-calm {
-  content: "";
+/* Photographic sky — rendered by <SkyCanvas /> (src/components/SkyCanvas.tsx).
+   Two .sky-pane layers crossfade between expedition-grade landscapes (pools
+   per weather, timed rotation + manual shuffle); .sky-scrim adds the
+   weather-toned contrast gradient; .sky-shuffle is the manual dice. */
+.sky-pane {
+  position: fixed;
+  inset: -4%;
+  z-index: -1;
+  pointer-events: none;
+  background-size: cover;
+  background-position: center;
+  transition-property: opacity;
+  transition-timing-function: ease;
+  will-change: transform, opacity;
+  animation: kenburns 46s ease-in-out infinite alternate;
+  /* lift the photos toward the saturation the glass expects to refract */
+  filter: saturate(1.35) contrast(1.05);
+}
+.sky-scrim {
   position: fixed;
   inset: 0;
   z-index: -1;
   pointer-events: none;
-  transition: opacity 1.1s ease;
+  transition: background-image 0s, opacity 1.1s ease;
 }
-/* calm — lush garden dawn: emerald + cyan blooms, a warm peach light source,
-   one magenta-violet undertone. Alive, not fog. */
-.sky-calm {
-  opacity: 1;
-  background:
-    radial-gradient(42% 52% at 6% 0%, rgba(255, 200, 150, 0.78), transparent 56%),
-    radial-gradient(46% 56% at 96% 3%, rgba(64, 246, 192, 0.72), transparent 56%),
-    radial-gradient(40% 50% at 70% 28%, rgba(124, 224, 255, 0.58), transparent 55%),
-    radial-gradient(46% 56% at 28% 52%, rgba(184, 154, 255, 0.5), transparent 55%),
-    radial-gradient(40% 50% at 90% 68%, rgba(255, 166, 214, 0.56), transparent 55%),
-    radial-gradient(46% 56% at 10% 96%, rgba(70, 224, 255, 0.62), transparent 56%),
-    radial-gradient(40% 50% at 62% 100%, rgba(118, 236, 188, 0.54), transparent 55%),
-    linear-gradient(158deg, #2fa89b 0%, #2aa6a0 30%, #2f93a4 62%, #2b8197 100%);
+.sky-shuffle {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.75);
+  font-size: 15px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), 0 12px 30px -12px rgba(4, 10, 12, 0.6);
+  backdrop-filter: blur(18px) saturate(180%);
+  -webkit-backdrop-filter: blur(18px) saturate(180%);
+  transition: transform 0.15s ease, background-color 0.2s ease;
 }
-/* warning — amber dusk: gold blooms held by a deep bronze base. Same
-   discipline as calm: light lives IN the dark, never a wall of color. */
-body::before {
-  opacity: 0;
-  background:
-    radial-gradient(42% 52% at 6% 0%, rgba(255, 214, 140, 0.5), transparent 56%),
-    radial-gradient(46% 56% at 96% 3%, rgba(252, 152, 76, 0.42), transparent 56%),
-    radial-gradient(40% 50% at 70% 28%, rgba(255, 196, 110, 0.3), transparent 55%),
-    radial-gradient(46% 56% at 28% 52%, rgba(236, 120, 130, 0.26), transparent 55%),
-    radial-gradient(40% 50% at 90% 68%, rgba(250, 160, 96, 0.3), transparent 55%),
-    radial-gradient(46% 56% at 10% 96%, rgba(248, 182, 80, 0.36), transparent 56%),
-    radial-gradient(40% 50% at 62% 100%, rgba(255, 170, 96, 0.28), transparent 55%),
-    linear-gradient(158deg, #6e4a20 0%, #62411f 30%, #4c321a 62%, #352414 100%);
+.sky-shuffle:hover {
+  background: rgba(255, 255, 255, 0.16);
+  color: white;
 }
-/* critical — storm: restrained rose + violet blooms over deep indigo-plum.
-   Reads serious and cold, never candy. */
-body::after {
-  opacity: 0;
-  background:
-    radial-gradient(42% 52% at 6% 0%, rgba(244, 130, 176, 0.38), transparent 56%),
-    radial-gradient(46% 56% at 96% 3%, rgba(168, 122, 248, 0.4), transparent 56%),
-    radial-gradient(40% 50% at 70% 28%, rgba(140, 130, 250, 0.28), transparent 55%),
-    radial-gradient(46% 56% at 28% 52%, rgba(232, 86, 126, 0.26), transparent 55%),
-    radial-gradient(40% 50% at 90% 68%, rgba(226, 110, 170, 0.28), transparent 55%),
-    radial-gradient(46% 56% at 10% 96%, rgba(120, 126, 244, 0.34), transparent 56%),
-    radial-gradient(40% 50% at 62% 100%, rgba(186, 110, 240, 0.26), transparent 55%),
-    linear-gradient(158deg, #3c2750 0%, #3a2350 30%, #2c1b40 62%, #1e1330 100%);
+.sky-shuffle:active {
+  transform: rotate(40deg) scale(0.92);
 }
-:root[data-weather="warning"] body::before { opacity: 1; }
-:root[data-weather="critical"] body::after { opacity: 1; }
-:root[data-weather="warning"] .sky-calm,
-:root[data-weather="critical"] .sky-calm { opacity: 0; }
+@keyframes kenburns {
+  from { transform: scale(1) translate3d(0, 0, 0); }
+  to { transform: scale(1.1) translate3d(1.6%, -1.2%, 0); }
+}
 
 /* Living light — two huge soft blooms drifting on the compositor
    (transform + opacity only). They ride ABOVE the weather sky and tint
@@ -324,10 +324,10 @@ body::after {
       var(--noise),
       linear-gradient(125deg, rgba(255, 255, 255, 0.26) 0%, rgba(255, 255, 255, 0.08) 22%, transparent 42%),
       linear-gradient(165deg, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0.04) 50%, rgba(255, 255, 255, 0.1) 100%),
-      rgba(8, 18, 22, 0.1);
+      rgba(8, 18, 22, 0.4);
     box-shadow: var(--edge-light), var(--shadow-card);
-    backdrop-filter: blur(40px) saturate(210%) brightness(1.12);
-    -webkit-backdrop-filter: blur(40px) saturate(210%) brightness(1.12);
+    backdrop-filter: blur(48px) saturate(210%) brightness(1.1);
+    -webkit-backdrop-filter: blur(48px) saturate(210%) brightness(1.1);
   }
 
   .glass {
@@ -337,11 +337,11 @@ body::after {
       var(--noise),
       linear-gradient(125deg, rgba(255, 255, 255, 0.26) 0%, rgba(255, 255, 255, 0.08) 22%, transparent 42%),
       linear-gradient(165deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.03) 52%, rgba(255, 255, 255, 0.07) 100%),
-      rgba(10, 20, 26, 0.26);
+      rgba(10, 20, 26, 0.4);
     border-radius: var(--card-radius);
     box-shadow: var(--edge-light), var(--shadow-card);
-    backdrop-filter: blur(26px) saturate(200%) brightness(1.08);
-    -webkit-backdrop-filter: blur(26px) saturate(200%) brightness(1.08);
+    backdrop-filter: blur(40px) saturate(205%) brightness(1.08);
+    -webkit-backdrop-filter: blur(40px) saturate(205%) brightness(1.08);
   }
 
   /* Header strips / toolbars — same material, hair brighter */
@@ -498,36 +498,41 @@ body::after {
     border: 1px solid rgba(255, 255, 255, 0.1);
   }
 
-  /* Accent cards — pale frosted mist, like backlit sea-glass.
-     Dark ink stays readable; saturation stays low; each is a
-     tonal sibling of the fog family, not a candy gradient. */
+  /* Accent cards — TINTED GLASS, not opaque pastel. Same material language
+     as .glass (blur + specular top edge), with a hue whisper per family so
+     the photographic sky stays visible through every surface. White ink. */
+  .grad-mint,
+  .grad-violet,
+  .grad-amber,
+  .grad-cyan {
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    box-shadow: var(--edge-light), 0 24px 60px -28px rgba(4, 10, 12, 0.5);
+    backdrop-filter: blur(28px) saturate(200%) brightness(1.06);
+    -webkit-backdrop-filter: blur(28px) saturate(200%) brightness(1.06);
+  }
   .grad-mint {
     background:
       var(--noise),
-      radial-gradient(120% 130% at 18% -10%, rgba(255, 255, 255, 0.55), transparent 52%),
-      linear-gradient(160deg, #dde9e3 0%, #c2d6cd 55%, #a9c4bd 100%);
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7), 0 24px 60px -28px rgba(0, 0, 0, 0.55);
+      linear-gradient(125deg, rgba(255, 255, 255, 0.22) 0%, rgba(255, 255, 255, 0.06) 24%, transparent 44%),
+      linear-gradient(160deg, rgba(110, 222, 178, 0.2) 0%, rgba(110, 222, 178, 0.07) 55%, rgba(8, 20, 18, 0.3) 100%);
   }
   .grad-violet {
     background:
       var(--noise),
-      radial-gradient(120% 130% at 18% -10%, rgba(255, 255, 255, 0.5), transparent 52%),
-      linear-gradient(160deg, #e0dde9 0%, #c9c3d8 55%, #b3abc8 100%);
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7), 0 24px 60px -28px rgba(0, 0, 0, 0.55);
+      linear-gradient(125deg, rgba(255, 255, 255, 0.22) 0%, rgba(255, 255, 255, 0.06) 24%, transparent 44%),
+      linear-gradient(160deg, rgba(188, 162, 240, 0.2) 0%, rgba(188, 162, 240, 0.07) 55%, rgba(14, 10, 24, 0.3) 100%);
   }
   .grad-amber {
     background:
       var(--noise),
-      radial-gradient(120% 130% at 18% -10%, rgba(255, 255, 255, 0.5), transparent 52%),
-      linear-gradient(160deg, #eae2cf 0%, #d8cab0 55%, #c4b294 100%);
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7), 0 24px 60px -28px rgba(0, 0, 0, 0.55);
+      linear-gradient(125deg, rgba(255, 255, 255, 0.22) 0%, rgba(255, 255, 255, 0.06) 24%, transparent 44%),
+      linear-gradient(160deg, rgba(244, 196, 110, 0.2) 0%, rgba(244, 196, 110, 0.07) 55%, rgba(22, 14, 6, 0.3) 100%);
   }
   .grad-cyan {
     background:
       var(--noise),
-      radial-gradient(120% 130% at 18% -10%, rgba(255, 255, 255, 0.5), transparent 52%),
-      linear-gradient(160deg, #dbe5ea 0%, #c1d2da 55%, #a6bcc8 100%);
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7), 0 24px 60px -28px rgba(0, 0, 0, 0.55);
+      linear-gradient(125deg, rgba(255, 255, 255, 0.22) 0%, rgba(255, 255, 255, 0.06) 24%, transparent 44%),
+      linear-gradient(160deg, rgba(126, 200, 236, 0.2) 0%, rgba(126, 200, 236, 0.07) 55%, rgba(8, 16, 22, 0.3) 100%);
   }
 
   .hairline {
@@ -535,9 +540,12 @@ body::after {
   }
 
   /* ============ Legacy aliases → liquid glass material ============ */
-  /* The app frame is an almost-clear pane: NO heavy backdrop-blur here, so the
-     living aurora behind it stays crisp and colorful for the inner cards to
-     refract. Just a hairline rim + a soft floating shadow holds the device. */
+  /* The app frame is an almost-clear pane. CRITICAL: it must have NO
+     backdrop-filter at all — an ancestor with backdrop-filter becomes the
+     "backdrop root" in Chrome, after which the inner cards' blur can no
+     longer sample the fixed sky behind the frame, and the glass collapses
+     into unblurred raw background (browser-dependent). Hairline rim + shadow
+     only. */
   .liquid-device {
     position: relative;
     border: 1px solid rgba(255, 255, 255, 0.16);
@@ -548,8 +556,6 @@ body::after {
       inset 1px 0 0 rgba(255, 255, 255, 0.08),
       inset -1px 0 0 rgba(255, 255, 255, 0.06),
       0 48px 130px -50px rgba(4, 10, 12, 0.7);
-    backdrop-filter: blur(2px) saturate(135%);
-    -webkit-backdrop-filter: blur(2px) saturate(135%);
   }
   .liquid-window {
     border: 1px solid rgba(255, 255, 255, 0.14);
@@ -675,7 +681,8 @@ body::after {
   .override-pulse,
   .lift,
   .sky-drift::before,
-  .sky-drift::after {
+  .sky-drift::after,
+  .sky-pane {
     animation: none !important;
     transition: none !important;
   }
