@@ -9,6 +9,7 @@ import TaskBoard, { DecoratedTask } from "@/components/TaskBoard";
 import TimelineView from "@/components/TimelineView";
 import HotelMap from "@/components/HotelMap";
 import ComplaintRecovery from "@/components/ComplaintRecovery";
+import GmailIntakePanel from "@/components/GmailIntakePanel";
 import {
   AgentTraceStage,
   FreshnessResult,
@@ -43,6 +44,7 @@ export default function Page() {
       { key: "timeline", label: t.nav.timeline },
       { key: "map", label: t.nav.map },
       { key: "recovery", label: t.nav.recovery },
+      { key: "intake", label: t.nav.intake },
     ],
     [t]
   );
@@ -268,6 +270,8 @@ export default function Page() {
       {activeTab === "map" && (
         <HotelMap assignedRoom={trace ? "402" : undefined} highlight={!!trace} />
       )}
+
+      {activeTab === "intake" && <GmailIntakePanel lang={lang} />}
 
       {activeTab === "recovery" && (
         <ComplaintRecovery

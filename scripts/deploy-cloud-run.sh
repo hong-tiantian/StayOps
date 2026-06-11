@@ -30,12 +30,22 @@ GMAIL_REFRESH_TOKEN="$(grep -E '^GMAIL_REFRESH_TOKEN=' "$ROOT/.env.local" | cut 
 
 echo "==> [0/3] One-time setup: APIs + Cloud Build permissions for the default compute SA ..."
 echo "==> Target project: $PROJECT"
+echo "==> Active account: $(gcloud config get-value account 2>/dev/null || echo unknown)"
 gcloud services enable run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com \
   --project "$PROJECT"
 PROJECT_NUMBER="$(gcloud projects describe "$PROJECT" --format 'value(projectNumber)')"
-gcloud projects add-iam-policy-binding "$PROJECT" \
+if ! gcloud projects add-iam-policy-binding "$PROJECT" \
   --member "serviceAccount:${PROJECT_NUMBER}-compute@developer.gserviceaccount.com" \
-  --role roles/cloudbuild.builds.builder --condition=None >/dev/null
+  --role roles/cloudbuild.builds.builder --condition=None >/dev/null; then
+  echo ""
+  echo "⚠️  Could not update Cloud Build IAM for project $PROJECT."
+  echo "   Your active gcloud account may not have resourcemanager.projects.setIamPolicy."
+  echo "   If the deploy fails during Cloud Build, ask a project Owner to run:"
+  echo "   gcloud projects add-iam-policy-binding $PROJECT \\"
+  echo "     --member serviceAccount:${PROJECT_NUMBER}-compute@developer.gserviceaccount.com \\"
+  echo "     --role roles/cloudbuild.builds.builder --condition=None"
+  echo ""
+fi
 
 echo "==> [1/3] Deploying Next.js app (stayops) ..."
 gcloud run deploy stayops \
@@ -43,7 +53,7 @@ gcloud run deploy stayops \
   --project "$PROJECT" --region "$REGION" \
   --allow-unauthenticated \
   --max-instances 1 --memory 1Gi --timeout 300 \
-  --set-env-vars "GOOGLE_GENAI_USE_VERTEXAI=true,GOOGLE_CLOUD_PROJECT=$PROJECT,GOOGLE_CLOUD_LOCATION=global,GEMINI_MODEL=gemini-3.5-flash,PHOENIX_COLLECTOR_ENDPOINT=$PHOENIX_COLLECTOR_ENDPOINT,PHOENIX_API_KEY=$PHOENIX_API_KEY,GMAIL_CLIENT_ID=$GMAIL_CLIENT_ID,GMAIL_CLIENT_SECRET=$GMAIL_CLIENT_SECRET,GMAIL_REDIRECT_URI=$GMAIL_REDIRECT_URI,GMAIL_REFRESH_TOKEN=$GMAIL_REFRESH_TOKEN,GMAIL_OAUTH_SHOW_TOKEN=false" \
+  --set-env-vars "GOOGLE_GENAI_USE_VERTEXAI=true,GOOGLE_CLOUD_PROJECT=$PROJECT,GOOGLE_CLOUD_LOCATION=global,GEMINI_MODEL=gemini-3.5-flash,EVAL_API_ENABLED=1,PHOENIX_COLLECTOR_ENDPOINT=$PHOENIX_COLLECTOR_ENDPOINT,PHOENIX_API_KEY=$PHOENIX_API_KEY,GMAIL_CLIENT_ID=$GMAIL_CLIENT_ID,GMAIL_CLIENT_SECRET=$GMAIL_CLIENT_SECRET,GMAIL_REDIRECT_URI=$GMAIL_REDIRECT_URI,GMAIL_REFRESH_TOKEN=$GMAIL_REFRESH_TOKEN,GMAIL_OAUTH_SHOW_TOKEN=false" \
   --quiet
 
 APP_URL="$(gcloud run services describe stayops --project "$PROJECT" --region "$REGION" --format 'value(status.url)')"
