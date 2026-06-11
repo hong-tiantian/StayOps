@@ -65,8 +65,7 @@ const checkRoomReadiness = new FunctionTool({
     away_from_elevator: z.boolean().optional().describe('Require away from elevator.'),
     arrival_time: z
       .string()
-      .optional()
-      .describe('ISO local arrival, e.g. 2026-07-18T11:00:00.'),
+      .describe('Required ISO local arrival from the reservation, e.g. 2026-07-18T11:00:00.'),
   }),
   execute: (args) => callTool('check_room_readiness', args),
 });
@@ -100,7 +99,7 @@ const checkEventSpace = new FunctionTool({
   parameters: z.object({
     space_id: z.string().describe('Event space id, e.g. MR-BLUE.'),
     requirement: z.string().optional().describe('e.g. "projector setup".'),
-    date_time: z.string().optional().describe('Meeting start ISO, e.g. 2026-07-18T14:00:00.'),
+    date_time: z.string().describe('Required meeting start ISO from the reservation/message, e.g. 2026-07-18T14:00:00.'),
   }),
   execute: (args) => callTool('check_event_space', args),
 });

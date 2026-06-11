@@ -121,6 +121,23 @@ export interface PromiseDecision {
   agent_proposed_status?: string;
   /** True when the deterministic safety gate overrode the agent's proposed status. */
   policy_overruled?: boolean;
+  /** Structured analysis so the UI can render a logical narrative
+      (policy basis → live checks → safety-gate conclusion) instead of a flat dump.
+      `evidence` stays as the flat union for eval/back-compat. */
+  evidence_groups?: EvidenceGroups;
+}
+
+export interface EvidenceGroups {
+  /** One-line summary of what the guest asked for. */
+  headline?: string;
+  /** Hotel SOP / policy passages the decision rests on. */
+  policy: string[];
+  /** Live operational checks (room readiness, inventory, schedules…). */
+  checks: string[];
+  /** Safety-gate notes: basic-info gate, guardrail overrides. */
+  gate: string[];
+  /** Raw agent-proposed evidence (judge view only — often repeats policy). */
+  agent: string[];
 }
 
 export interface InfoAnalysis {

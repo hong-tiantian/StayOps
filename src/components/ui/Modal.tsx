@@ -3,6 +3,7 @@
 import { ReactNode, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
+import { X } from "lucide-react";
 
 export default function Modal({
   open,
@@ -61,7 +62,7 @@ export default function Modal({
                 onClick={onClose}
                 className="grid h-8 w-8 shrink-0 place-items-center rounded-full border border-white/12 bg-white/5 text-white/60 transition hover:bg-white/12 hover:text-white"
               >
-                ✕
+                <X className="h-3.5 w-3.5" strokeWidth={1.75} aria-hidden />
               </button>
             </div>
             <div className="min-h-0 flex-1 overflow-auto p-5">{children}</div>

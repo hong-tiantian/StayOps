@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef } from "react";
+import { ArrowUpDown, VolumeX } from "lucide-react";
 
 interface MapRoom {
   room_id: string;
@@ -62,7 +63,10 @@ export default function HotelMap({
             {SUIT[k].label}
           </span>
         ))}
-        <span className="ml-1 text-white/40">🛗 elevator · 🔇 quiet zone</span>
+        <span className="ml-1 flex items-center gap-1.5 text-white/40">
+          <ArrowUpDown className="h-3 w-3" strokeWidth={1.75} aria-hidden /> elevator ·{" "}
+          <VolumeX className="h-3 w-3" strokeWidth={1.75} aria-hidden /> quiet zone
+        </span>
       </div>
 
       {highlight && (
@@ -119,8 +123,8 @@ export default function HotelMap({
                 <div className="flex items-stretch gap-3">
                   {/* elevator shaft */}
                   <div className="grid w-14 shrink-0 place-items-center rounded-xl border border-dashed border-white/20 bg-white/[0.04] text-center text-[11px] text-white/45">
-                    <div>
-                      <div className="text-lg leading-none">🛗</div>
+                    <div className="grid place-items-center gap-0.5">
+                      <ArrowUpDown className="h-4 w-4" strokeWidth={1.75} aria-hidden />
                       lift
                     </div>
                   </div>
@@ -147,9 +151,9 @@ export default function HotelMap({
                               <span className="text-[15px] font-bold text-white">
                                 {r.room_id}
                               </span>
-                              <span className="flex items-center gap-0.5 text-[12px]">
-                                {r.quiet && <span title="quiet zone">🔇</span>}
-                                {r.nearElevator && <span title="near elevator">🛗</span>}
+                              <span className="flex items-center gap-1 text-white/70">
+                                {r.quiet && <VolumeX className="h-3 w-3" strokeWidth={1.75} aria-label="quiet zone" />}
+                                {r.nearElevator && <ArrowUpDown className="h-3 w-3" strokeWidth={1.75} aria-label="near elevator" />}
                               </span>
                             </div>
                             <div className="flex items-center gap-1 text-[11px] uppercase tracking-wide text-white/50">

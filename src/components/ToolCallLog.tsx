@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { ToolCall } from "@/lib/types";
-import { describeCall, toolIcon, toolLabel } from "@/lib/humanize";
+import { describeCall, toolLabel } from "@/lib/humanize";
+import { ToolIcon } from "@/components/ui/icons";
 
 /**
  * Operator-facing audit trail. Reads as plain-language activity by default.
@@ -51,8 +52,8 @@ export default function ToolCallLog({
       <ol className="relative space-y-2.5 border-l border-white/10 pl-4">
         {calls.map((c, i) => (
           <li key={i} className="relative animate-fadeup" style={{ animationDelay: `${i * 25}ms` }}>
-            <span className="absolute -left-[21px] top-1.5 grid h-4 w-4 place-items-center rounded-full bg-white/10 text-[9px] ring-1 ring-white/15">
-              {toolIcon(c.tool_name)}
+            <span className="absolute -left-[21px] top-1.5 grid h-4 w-4 place-items-center rounded-full bg-white/10 text-white/65 ring-1 ring-white/15">
+              <ToolIcon tool={c.tool_name} className="h-2.5 w-2.5" />
             </span>
             <div className="rounded-xl border border-white/8 bg-white/[0.03] px-3 py-2.5">
               <div className="flex items-center justify-between gap-2">

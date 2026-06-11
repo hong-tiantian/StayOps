@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Sparkles } from "lucide-react";
 
 /**
  * SkyCanvas — the living photographic sky.
@@ -8,7 +9,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
  * Planet-Earth-grade nature & travel photography, pooled per weather state,
  * with a daily feed on top:
  *
- *   curated pools  aurora / golden dunes / storms (CC, shipped in /public/sky)
+ *   curated pools  imported landscape photos shipped in /public/sky/imported
  *   daily pool     Bing's photo-of-the-day archive via /api/sky/daily —
  *                  fresh professional landscapes every day, merged into the
  *                  calm pool (the scrim keeps any photo on-mood)
@@ -20,24 +21,29 @@ import { useCallback, useEffect, useRef, useState } from "react";
  * Weather comes from <html data-weather> (owned by page.tsx) via a
  * MutationObserver, so this component needs no props and no context.
  *
- * Curated photo credits (CC-BY / PDM via Openverse):
- *   calm-1    "The Northern Lights, Iceland" — Giuseppe Milo
- *   calm-2    "Happy Colorful ThanksGiving Friday!" — Vinoth Chandar
- *   calm-3    "Northern Lights, Hofn, Iceland" — Giuseppe Milo
- *   warning-1 "Sand to see" (golden dunes) — john mcsporran
- *   warning-2 "golden sky" — pranav
- *   warning-3 "Morning Glow" (Death Valley) — Joe Parks
- *   critical-1 "Beaumont Supercell" — fireboat895
- *   critical-2 "Purple Mountain Majesties No. 2" — ikewinski
- *   critical-3 "impending storms" — paul bica
+ * Curated photos are supplied by the project in images.zip and extracted into
+ * public/sky/imported so the UI does not depend on external photo sources.
  */
 
 type Weather = "calm" | "warning" | "critical";
 
 const POOLS: Record<Weather, string[]> = {
-  calm: ["/sky/calm-1.jpg", "/sky/calm-2.jpg", "/sky/calm-3.jpg"],
-  warning: ["/sky/warning-1.jpg", "/sky/warning-2.jpg", "/sky/warning-3.jpg"],
-  critical: ["/sky/critical-1.jpg", "/sky/critical-2.jpg", "/sky/critical-3.jpg"],
+  calm: [
+    "/sky/imported/MonurikiFiji.jpg",
+    "/sky/imported/QueenslandReef.jpg",
+    "/sky/imported/PalouseWA.jpg",
+    "/sky/imported/GalapagosPenguins.jpg",
+  ],
+  warning: [
+    "/sky/imported/EvergladesWetlands.jpg",
+    "/sky/imported/Hnausapollur.jpg",
+    "/sky/imported/Limpets.jpg",
+  ],
+  critical: [
+    "/sky/imported/GlacialRivers.jpg",
+    "/sky/imported/Hnausapollur.jpg",
+    "/sky/imported/EvergladesWetlands.jpg",
+  ],
 };
 
 /** Weather-toned scrim over the photo: contrast for white ink + hue coherence. */
@@ -176,7 +182,7 @@ export default function SkyCanvas() {
         aria-label="Shuffle background landscape"
         className="sky-shuffle"
       >
-        ✦
+        <Sparkles className="h-3.5 w-3.5" strokeWidth={1.75} aria-hidden />
       </button>
     </>
   );

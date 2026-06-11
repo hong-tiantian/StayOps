@@ -41,9 +41,9 @@ export const AGENT_TOOL_DECLARATIONS: FunctionDeclaration[] = [
         quiet_zone: { type: Type.BOOLEAN, description: "Require a quiet-zone room." },
         away_from_elevator: { type: Type.BOOLEAN, description: "Require away from elevator." },
         high_floor: { type: Type.BOOLEAN, description: "Require a high floor (4th floor or above)." },
-        arrival_time: { type: Type.STRING, description: "ISO local arrival, e.g. 2026-07-18T11:00:00." },
+        arrival_time: { type: Type.STRING, description: "Required ISO local arrival from the reservation, e.g. 2026-07-18T11:00:00." },
       },
-      required: ["room_type"],
+      required: ["room_type", "arrival_time"],
     },
   },
   {
@@ -81,10 +81,10 @@ export const AGENT_TOOL_DECLARATIONS: FunctionDeclaration[] = [
       type: Type.OBJECT,
       properties: {
         requirement: { type: Type.STRING, description: 'e.g. "projector setup".' },
-        date_time: { type: Type.STRING, description: "Meeting start ISO, e.g. 2026-07-18T14:00:00." },
+        date_time: { type: Type.STRING, description: "Required meeting start ISO from the reservation/message, e.g. 2026-07-18T14:00:00." },
         space_id: { type: Type.STRING, description: "Event space id, e.g. MR-BLUE." },
       },
-      required: ["space_id"],
+      required: ["space_id", "date_time"],
     },
   },
 ];
@@ -102,6 +102,9 @@ export function dispatchTool(name: string, args: ToolArgs, runner: ToolRunner): 
     case "check_data_freshness":
       return runner.check_data_freshness(String(args.source_name));
     case "check_room_readiness":
+      if (!args.arrival_time) {
+        return { error: "arrival_time is required; use the reservation arrival date and time instead of a demo fallback." };
+      }
       return runner.check_room_readiness(
         String(args.room_type ?? "king"),
         {
@@ -109,7 +112,7 @@ export function dispatchTool(name: string, args: ToolArgs, runner: ToolRunner): 
           away_from_elevator: Boolean(args.away_from_elevator),
           high_floor: Boolean(args.high_floor),
         },
-        String(args.arrival_time ?? "2026-07-18T11:00:00")
+        String(args.arrival_time)
       );
     case "check_inventory":
       return runner.check_inventory(String(args.item_type), {
@@ -118,10 +121,13 @@ export function dispatchTool(name: string, args: ToolArgs, runner: ToolRunner): 
     case "retrieve_sop":
       return runner.retrieve_sop(String(args.promise_type));
     case "check_event_space":
+      if (!args.space_id || !args.date_time) {
+        return { error: "space_id and date_time are required; use reservation/message context instead of a demo fallback." };
+      }
       return runner.check_event_space(
         String(args.requirement ?? "setup"),
-        String(args.date_time ?? "2026-07-18T14:00:00"),
-        String(args.space_id ?? "MR-BLUE")
+        String(args.date_time),
+        String(args.space_id)
       );
     default:
       return { error: `Unknown tool: ${name}` };

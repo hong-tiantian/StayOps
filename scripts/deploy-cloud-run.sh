@@ -2,7 +2,7 @@
 # Deploy StayOps to Cloud Run: the Next.js app + the ADK agent service, wired together.
 #
 # Usage:
-#   ./scripts/deploy-cloud-run.sh
+#   GCP_PROJECT=<your-gcp-project-id> ./scripts/deploy-cloud-run.sh
 #
 # Prereqs: gcloud authenticated (`gcloud auth login`), billing-enabled project.
 # Reads PHOENIX_* and Gmail values from env or .env.local so integrations work in prod.
@@ -16,9 +16,11 @@ if ! command -v gcloud >/dev/null 2>&1; then
 fi
 command -v gcloud >/dev/null 2>&1 || { echo "gcloud not found - install the Google Cloud SDK first."; exit 1; }
 
-PROJECT="${GCP_PROJECT:-stayops-498807}"
+PROJECT="${GCP_PROJECT:-}"
 REGION="${GCP_REGION:-us-central1}"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+
+[ -n "$PROJECT" ] || { echo "GCP_PROJECT is required. Usage: GCP_PROJECT=<your-gcp-project-id> ./scripts/deploy-cloud-run.sh"; exit 1; }
 
 read_env() {
   local name="$1"

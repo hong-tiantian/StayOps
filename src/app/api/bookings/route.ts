@@ -8,6 +8,7 @@ export async function GET() {
   const bookings = loadReservations().map((r) => ({
     booking_id: r.booking_id,
     company_name: r.company_name,
+    arrival_date: r.arrival_date,
   }));
   return NextResponse.json({ bookings });
 }

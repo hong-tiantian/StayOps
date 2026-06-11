@@ -1,5 +1,6 @@
 "use client";
 
+import { Search } from "lucide-react";
 import { Lang, ui } from "@/lib/i18n";
 
 export interface TabDef {
@@ -7,17 +8,47 @@ export interface TabDef {
   label: string;
 }
 
-export interface HotelOption {
-  hotel_id: string;
-  name: string;
+export interface BookingOption {
+  booking_id: string;
+  company_name: string;
+  arrival_date?: string;
+}
+
+export type Role = "manager" | "judge";
+
+function bookingLabel(b: BookingOption) {
+  const date = b.arrival_date ? ` · ${b.arrival_date.slice(5)}` : "";
+  return `${b.company_name}${date}`;
+}
+
+const LOCALES = [
+  { value: "en", label: "English" },
+  { value: "es", label: "Español" },
+  { value: "fr", label: "Français" },
+  { value: "de", label: "Deutsch" },
+  { value: "ja", label: "日本語" },
+  { value: "ko", label: "한국어" },
+] as const;
+
+type LocaleValue = (typeof LOCALES)[number]["value"];
+
+function langToLocale(lang: Lang): LocaleValue {
+  return lang === "zh" ? "en" : lang;
+}
+
+function localeToLang(locale: string): Lang {
+  return locale === "zh" ? "zh" : "en";
 }
 
 export default function AppShell({
   tabs,
   activeTab,
   onTab,
+  role,
+  onRole,
   bookingId,
   company,
+  hotelName,
   allFresh,
   onRunAudit,
   onTrace,
@@ -27,16 +58,16 @@ export default function AppShell({
   onLang,
   bookings,
   onBooking,
-  hotels,
-  activeHotelId,
-  onHotel,
   children,
 }: {
   tabs: TabDef[];
   activeTab: string;
   onTab: (k: string) => void;
+  role: Role;
+  onRole: (r: Role) => void;
   bookingId: string;
   company: string;
+  hotelName?: string;
   allFresh: boolean;
   onRunAudit: () => void;
   onTrace: () => void;
@@ -44,14 +75,12 @@ export default function AppShell({
   tracing: boolean;
   lang: Lang;
   onLang: (lang: Lang) => void;
-  bookings: Array<{ booking_id: string; company_name: string }>;
+  bookings: BookingOption[];
   onBooking: (id: string) => void;
-  hotels?: HotelOption[];
-  activeHotelId?: string;
-  onHotel?: (id: string) => void;
   children: React.ReactNode;
 }) {
   const t = ui[lang];
+  const locale = langToLocale(lang);
 
   return (
     <div className="h-screen overflow-hidden p-3 sm:p-5">
@@ -63,13 +92,14 @@ export default function AppShell({
               <div className="grid h-9 w-9 place-items-center rounded-xl border border-white/15 bg-white/[0.08] text-sm font-semibold text-white">
                 S
               </div>
-              <div>
+              <div className="min-w-0">
                 <div className="text-sm font-semibold tracking-normal">StayOps</div>
-                <div className="t-caption mt-0.5">{t.nav.tagline}</div>
+                {/* Identity, not a switcher: the duty manager works at ONE hotel. */}
+                <div className="t-caption mt-0.5 truncate">{hotelName ?? t.nav.tagline}</div>
               </div>
             </div>
             <div className="liquid-window mt-4 rounded-2xl p-3.5">
-              <div className="t-label">Active booking</div>
+              <div className="t-label">Selected booking</div>
               <div className="mt-1.5 truncate text-[13px] font-semibold text-white">{company}</div>
               <div className="tnum mt-0.5 truncate font-mono text-[10px] text-white/38">{bookingId}</div>
             </div>
@@ -108,16 +138,6 @@ export default function AppShell({
                 {allFresh ? t.nav.fresh : t.nav.stale}
               </div>
             </div>
-            <button onClick={onRunAudit} disabled={auditing} className="btn btn-primary btn-lg w-full disabled:opacity-50">
-              {auditing ? t.nav.auditing : t.nav.audit}
-            </button>
-            <button
-              onClick={onTrace}
-              disabled={tracing}
-              className="btn btn-danger btn-lg w-full disabled:opacity-50"
-            >
-              {tracing ? t.nav.tracing : t.nav.trace}
-            </button>
           </div>
         </div>
       </aside>
@@ -129,52 +149,31 @@ export default function AppShell({
               <div className="grid h-8 w-8 place-items-center rounded-xl border border-white/25 bg-white/15 text-sm font-semibold text-white">S</div>
               <div>
                 <div className="text-sm font-semibold text-white">StayOps</div>
-                <div className="text-[10px] text-white/55">{t.nav.tagline}</div>
+                <div className="text-[10px] text-white/55">{hotelName ?? t.nav.tagline}</div>
               </div>
             </div>
 
-            {hotels && hotels.length > 0 && onHotel && (
-              <div className="flex h-8 items-center gap-1.5 rounded-xl border border-white/12 bg-white/[0.06] pl-2.5 pr-1 backdrop-blur-2xl">
-                <span
-                  className="h-1.5 w-1.5 shrink-0 rounded-full"
-                  style={{ background: "rgb(var(--ambient))", boxShadow: "0 0 6px rgb(var(--ambient))" }}
-                />
-                <select
-                  value={activeHotelId}
-                  onChange={(e) => onHotel(e.target.value)}
-                  title="Active hotel persona — switching changes the SOP corpus the agent reasons over"
-                  className="h-full max-w-[180px] bg-transparent pr-1 text-xs font-semibold text-white outline-none"
-                >
-                  {hotels.map((h) => (
-                    <option key={h.hotel_id} value={h.hotel_id} className="bg-slate-900">
-                      {h.name}
+            {activeTab !== "dashboard" && (
+              <select
+                value={bookingId}
+                onChange={(e) => onBooking(e.target.value)}
+                title={lang === "zh" ? "切换预订" : "Switch booking"}
+                className="select-glass"
+              >
+                {bookings.length === 0 ? (
+                  <option value={bookingId}>{company}</option>
+                ) : (
+                  bookings.map((b) => (
+                    <option key={b.booking_id} value={b.booking_id}>
+                      {bookingLabel(b)}
                     </option>
-                  ))}
-                </select>
-              </div>
+                  ))
+                )}
+              </select>
             )}
 
-            <select
-              value={bookingId}
-              onChange={(e) => onBooking(e.target.value)}
-              title="Switch booking"
-              className="h-8 max-w-[330px] rounded-xl border border-white/12 bg-white/[0.06] px-3 text-xs font-medium text-white outline-none backdrop-blur-2xl focus:border-white/25"
-            >
-              {bookings.length === 0 ? (
-                <option value={bookingId}>
-                  {bookingId} · {company}
-                </option>
-              ) : (
-                bookings.map((b) => (
-                  <option key={b.booking_id} value={b.booking_id}>
-                    {b.booking_id} · {b.company_name}
-                  </option>
-                ))
-              )}
-            </select>
-
             <div className="relative hidden min-w-[280px] flex-1 md:block">
-              <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-white/45">⌕</span>
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-white/45" strokeWidth={1.75} />
               <input
                 placeholder={t.nav.search}
                 className="h-8 w-full rounded-full bg-white/[0.08] pl-8 pr-3 text-xs text-white outline-none backdrop-blur-2xl transition placeholder:text-white/38 focus:bg-white/[0.12]"
@@ -184,22 +183,31 @@ export default function AppShell({
             <div className="ml-auto flex items-center gap-2">
               <div className="flex h-8 items-center rounded-xl border border-white/10 bg-white/[0.05] p-0.5 text-[11px] font-medium text-white/55 backdrop-blur-2xl">
                 <button
-                  onClick={() => onLang("en")}
-                  className={`rounded-lg px-2 py-1 ${
-                    lang === "en" ? "bg-white/90 text-slate-950" : "hover:text-white"
-                  }`}
+                  onClick={() => onRole("manager")}
+                  className={`rounded-lg px-2.5 py-1 transition ${role === "manager" ? "bg-white/90 text-slate-950" : "hover:text-white"}`}
                 >
-                  EN
+                  {t.nav.roleManager}
                 </button>
                 <button
-                  onClick={() => onLang("zh")}
-                  className={`rounded-lg px-2 py-1 ${
-                    lang === "zh" ? "bg-white/90 text-slate-950" : "hover:text-white"
-                  }`}
+                  onClick={() => onRole("judge")}
+                  className={`rounded-lg px-2.5 py-1 transition ${role === "judge" ? "bg-white/90 text-slate-950" : "hover:text-white"}`}
                 >
-                  中文
+                  {t.nav.roleJudge}
                 </button>
               </div>
+              <select
+                value={locale}
+                onChange={(e) => onLang(localeToLang(e.target.value))}
+                title="Locale"
+                aria-label="Locale"
+                className="select-glass"
+              >
+                {LOCALES.map((item) => (
+                  <option key={item.value} value={item.value}>
+                    {item.label}
+                  </option>
+                ))}
+              </select>
               <button onClick={onRunAudit} disabled={auditing} className="btn btn-primary hidden disabled:opacity-50 sm:inline-flex">
                 {auditing ? t.nav.auditing : t.nav.audit}
               </button>

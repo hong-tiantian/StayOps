@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Lang } from "@/lib/i18n";
 import { cx } from "@/components/ui/visuals";
+import { deptLabel } from "@/lib/humanize";
 import StatusBadge from "@/components/StatusBadge";
 import ReplyDraftCard from "@/components/ReplyDraftCard";
 
@@ -67,8 +68,17 @@ function compactDate(value?: string) {
   return value.replace("T", " ").slice(5, 16);
 }
 
-export default function GmailIntakePanel({ lang }: { lang: Lang }) {
+export default function GmailIntakePanel({
+  lang,
+  variant = "manual",
+}: {
+  lang: Lang;
+  /** "manual" = manager-facing manual intake (phone / walk-in / pasted text).
+      "gmail"  = judge-side test-email injection living in the Demo Console. */
+  variant?: "manual" | "gmail";
+}) {
   const zh = lang === "zh";
+  const isGmail = variant === "gmail";
   const [query, setQuery] = useState("[STAYOPS DEMO]");
   const [search, setSearch] = useState<GmailSearch | null>(null);
   const [searching, setSearching] = useState(false);
@@ -92,9 +102,9 @@ export default function GmailIntakePanel({ lang }: { lang: Lang }) {
   }, [zh]);
 
   useEffect(() => {
-    runSearch(query);
+    if (isGmail) runSearch(query);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [isGmail]);
 
   const auditMessages = useCallback(
     async (body: Record<string, unknown>) => {
@@ -148,17 +158,24 @@ export default function GmailIntakePanel({ lang }: { lang: Lang }) {
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="t-title">{zh ? "邮件接入" : "Email Intake"}</h1>
+        <h1 className="t-title">
+          {isGmail ? (zh ? "测试邮件注入" : "Test email injection") : zh ? "手动接入" : "Manual Intake"}
+        </h1>
         <p className="t-caption mt-0.5">
-          {zh
-            ? "从 Gmail 导入预订邮件或手动粘贴 — 接入的邮件在隔离上下文中审计，不影响 Acme 主流程"
-            : "Import booking emails from Gmail or paste manually — intake is audited in an isolated context and never touches the Acme demo flow"}
+          {isGmail
+            ? zh
+              ? "从 Gmail 只读导入预订邮件 — 在隔离上下文中审计，不影响 Acme 主流程"
+              : "Readonly Gmail import for booking emails — audited in an isolated context, never touches the Acme demo flow"
+            : zh
+            ? "电话预订、walk-in、微信截图等机器读不到的渠道 — 前台把内容敲进来，立即生成预订、承诺清单与回复草稿"
+            : "Phone bookings, walk-ins, chat screenshots — channels machines can't read. Type what the guest said and get a booking, promise list and reply draft instantly"}
         </p>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        {/* -------- Left: Gmail search + manual paste -------- */}
+        {/* -------- Left: Gmail search (judge) or manual entry (manager) -------- */}
         <div className="space-y-4">
+          {isGmail && (
           <div className="glass p-5">
             <div className="mb-3 flex items-center justify-between">
               <h3 className="t-label">Gmail</h3>
@@ -236,17 +253,21 @@ export default function GmailIntakePanel({ lang }: { lang: Lang }) {
               </>
             )}
           </div>
+          )}
 
+          {!isGmail && (
           <div className="glass p-5">
-            <h3 className="t-label mb-1.5">{zh ? "手动粘贴" : "Manual paste"}</h3>
+            <h3 className="t-label mb-1.5">{zh ? "录入客人需求" : "Type in the guest request"}</h3>
             <p className="t-caption mb-2.5">
-              {zh ? "Gmail 未连接时的等价通道 — 粘贴任意预订邮件正文" : "Equivalent path when Gmail is offline — paste any booking email body"}
+              {zh
+                ? "接电话边听边敲、或粘贴聊天/邮件原文 — 系统自动提取承诺并走同一套安全审计"
+                : "Type while on the phone, or paste the raw chat / email — promises are extracted and run through the same safety audit"}
             </p>
             <textarea
               value={pasteText}
               onChange={(e) => setPasteText(e.target.value)}
-              rows={6}
-              placeholder={zh ? "粘贴邮件正文…" : "Paste the email body…"}
+              rows={10}
+              placeholder={zh ? "例如：Chen 女士来电，7 月 22 日两间大床房，需要无麸质早餐，希望高层安静……" : "e.g. Ms Chen called — two king rooms July 22, gluten-free breakfast, quiet high floor if possible…"}
               className="w-full resize-none rounded-xl border border-white/10 bg-white/[0.03] p-3.5 text-[13px] leading-relaxed text-white/85 placeholder-white/30 focus:border-white/25 focus:outline-none"
             />
             <button
@@ -254,9 +275,10 @@ export default function GmailIntakePanel({ lang }: { lang: Lang }) {
               disabled={auditing || !pasteText.trim()}
               className="btn btn-primary mt-2.5 disabled:opacity-50"
             >
-              {auditing ? (zh ? "审计中…" : "Auditing…") : zh ? "审计这封邮件" : "Audit this email"}
+              {auditing ? (zh ? "审计中…" : "Auditing…") : zh ? "生成预订与承诺清单" : "Create booking & promise list"}
             </button>
           </div>
+          )}
         </div>
 
         {/* -------- Right: audit result + grounding + reply loop -------- */}
@@ -306,7 +328,7 @@ export default function GmailIntakePanel({ lang }: { lang: Lang }) {
                         <div className="min-w-0 flex-1">
                           <div className="truncate text-[12.5px] text-white/90">{d.promise_text}</div>
                           <div className="t-caption">
-                            {d.owner_department}
+                            {deptLabel(d.owner_department, lang)}
                             {d.approval_required && (zh ? " · 需经理审批" : " · needs manager approval")}
                             {d.promise_id.startsWith("NOVEL") && (zh ? " · 规则库外" : " · outside rule library")}
                           </div>

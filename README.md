@@ -122,14 +122,13 @@ npm run dev        # http://localhost:3000
 Canonical deployment target:
 
 ```text
-GCP project: stayops-498807
-Project number: 165249719568
+GCP project: <your-gcp-project-id>
 Region: us-central1
 Cloud Run web URL: https://stayops-mzcsrz357a-uc.a.run.app
 ```
 
 ```bash
-GCP_PROJECT=stayops-498807 ./scripts/deploy-cloud-run.sh
+GCP_PROJECT=<your-gcp-project-id> ./scripts/deploy-cloud-run.sh
 ```
 
 The script deploys both services from source with Cloud Build, points the ADK service's
@@ -218,7 +217,7 @@ All synthetic data lives in `/data` as CSV (loaded by `src/lib/data.ts`), acting
 - Free-tier Gemini quota is low; the agent uses exponential backoff and caches successful audits.
 - Data freshness uses a fixed `DEMO_NOW`; the freshness gate logic is real, but all demo sources are currently fresh.
 - Arize/Phoenix tracing and MCP self-review are present, but MCP evidence is not yet shown per promise and does not yet change policy decisions.
-- Local ADK / Agent Builder orchestration is implemented; Cloud Run deployment, final submission docs, and Arize hardening are still pending.
+- Local ADK / Agent Builder orchestration is implemented. A Cloud Run URL is documented above; verify the final hosted environment has `ADK_AGENT_URL` and Phoenix env configured before submission.
 
 ## Project Docs
 

@@ -3,9 +3,9 @@ import type { Hotel } from "./hotelStore";
 /**
  * Seed hotels.
  *
- * QST-CHATSWOOD is built from real franchise-hotel front-desk procedures
- * (Quest-style apartment hotel: limited desk hours, night manager, OTA/VCC
- * handling). MERIDIAN-GRAND is a deliberately contrasting full-service
+ * CITY-APARTMENTS is built from apartment-hotel front-desk procedures
+ * (limited desk hours, night manager, OTA/VCC handling). MERIDIAN-GRAND is a
+ * deliberately contrasting full-service
  * property so the demo can show the SAME guest email producing different
  * decisions under different hotel personas — the personalization proof.
  */
@@ -15,10 +15,10 @@ export interface SeedHotel {
   docs: Array<{ title: string; body: string }>;
 }
 
-const QUEST: SeedHotel = {
+const CITY_APARTMENTS: SeedHotel = {
   hotel: {
-    hotel_id: "QST-CHATSWOOD",
-    name: "Quest Chatswood",
+    hotel_id: "CITY-APARTMENTS",
+    name: "Harbourview Apartments",
     brand_style: "Franchise apartment hotel — lean team, strict procedures",
     timezone: "Australia/Sydney",
     persona: {
@@ -30,7 +30,7 @@ const QUEST: SeedHotel = {
       parking_summary: "On-site car park AUD 30 per night; plate and arrival time required; must be noted on the confirmation letter",
       upgrade_authority: "Paid upgrades only, subject to availability; rate difference recharged and daily rates rebalanced",
       voice: "Warm but precise; never promises what the roster cannot deliver",
-      signature: "Quest Chatswood Front Office",
+      signature: "Harbourview Apartments Front Office",
     },
   },
   docs: [
@@ -153,4 +153,4 @@ const MERIDIAN: SeedHotel = {
   ],
 };
 
-export const SEED_HOTELS: SeedHotel[] = [QUEST, MERIDIAN];
+export const SEED_HOTELS: SeedHotel[] = [CITY_APARTMENTS, MERIDIAN];
