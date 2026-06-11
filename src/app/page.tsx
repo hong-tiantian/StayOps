@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import AppShell, { TabDef } from "@/components/AppShell";
+import AppShell, { HotelOption, TabDef } from "@/components/AppShell";
 import CommandWorkspace, { WorkspaceMode } from "@/components/CommandWorkspace";
 import PromiseLedger from "@/components/PromiseLedger";
 import PromiseDetailDrawer from "@/components/PromiseDetailDrawer";
@@ -9,6 +9,8 @@ import TaskBoard, { DecoratedTask } from "@/components/TaskBoard";
 import TimelineView from "@/components/TimelineView";
 import HotelMap from "@/components/HotelMap";
 import ComplaintRecovery from "@/components/ComplaintRecovery";
+import GmailIntakePanel from "@/components/GmailIntakePanel";
+import HotelBrainPanel from "@/components/HotelBrainPanel";
 import {
   AgentTraceStage,
   FreshnessResult,
@@ -33,6 +35,8 @@ export default function Page() {
   const [workspaceMode, setWorkspaceMode] = useState<WorkspaceMode>("manager");
   const [bookingId, setBookingId] = useState(SEED_BOOKING);
   const [bookings, setBookings] = useState<Array<{ booking_id: string; company_name: string }>>([]);
+  const [hotels, setHotels] = useState<HotelOption[]>([]);
+  const [activeHotelId, setActiveHotelId] = useState<string>("");
   const t = ui[lang];
 
   const tabs: TabDef[] = useMemo(
@@ -43,6 +47,8 @@ export default function Page() {
       { key: "timeline", label: t.nav.timeline },
       { key: "map", label: t.nav.map },
       { key: "recovery", label: t.nav.recovery },
+      { key: "intake", label: t.nav.intake },
+      { key: "hotel", label: t.nav.hotel },
     ],
     [t]
   );
@@ -162,13 +168,34 @@ export default function Page() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bookingId]);
 
-  // Load booking list once for the selector.
+  // Load booking list + hotel personas once for the selectors.
   useEffect(() => {
     fetch("/api/bookings")
       .then((r) => r.json())
       .then((j) => setBookings(j.bookings ?? []))
       .catch(() => setBookings([]));
+    fetch("/api/hotels")
+      .then((r) => r.json())
+      .then((j) => {
+        setHotels((j.hotels ?? []).map((h: { hotel_id: string; name: string }) => ({ hotel_id: h.hotel_id, name: h.name })));
+        setActiveHotelId(j.active_hotel_id ?? "");
+      })
+      .catch(() => setHotels([]));
   }, []);
+
+  // Switching the hotel persona swaps the SOP corpus — re-audit immediately.
+  const switchHotel = useCallback(
+    async (hotel_id: string) => {
+      setActiveHotelId(hotel_id);
+      await fetch("/api/hotels", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ hotel_id }),
+      });
+      await runAudit(false);
+    },
+    [runAudit]
+  );
 
   const freshnessByPromise = useMemo(() => {
     const map: Record<string, { source_name: string; freshness_status: string }[]> = {};
@@ -184,15 +211,17 @@ export default function Page() {
   }, [decisions]);
 
   // Ambient weather — the page atmosphere IS the primary status indicator.
-  // calm = on track · warning = at-risk promises · critical = failures/conflicts or stale data gate
+  // calm = on track · warning = at-risk promises or stale data · critical = failures/conflicts.
+  // Stale data alone is a caution (the gate already blocks guarantees), not an emergency —
+  // critical is reserved for actual broken/conflicting promises.
   const weather = useMemo(() => {
-    if (!allFresh || decisions.some((d) => ["conflict", "failed"].includes(d.status))) return "critical";
+    if (decisions.some((d) => ["conflict", "failed"].includes(d.status))) return "critical";
     const unresolvedRisk = decisions.some(
       (d) =>
         ["at_risk", "needs_approval", "missing_info", "cannot_confirm"].includes(d.status) &&
         !(d.approval_required && approved.has(d.promise_id))
     );
-    return unresolvedRisk ? "warning" : "calm";
+    return !allFresh || unresolvedRisk ? "warning" : "calm";
   }, [decisions, approved, allFresh]);
 
   useEffect(() => {
@@ -220,6 +249,9 @@ export default function Page() {
       onLang={setLang}
       bookings={bookings}
       onBooking={setBookingId}
+      hotels={hotels}
+      activeHotelId={activeHotelId}
+      onHotel={switchHotel}
     >
       {activeTab === "dashboard" && (
         <CommandWorkspace
@@ -268,6 +300,10 @@ export default function Page() {
       {activeTab === "map" && (
         <HotelMap assignedRoom={trace ? "402" : undefined} highlight={!!trace} />
       )}
+
+      {activeTab === "intake" && <GmailIntakePanel lang={lang} />}
+
+      {activeTab === "hotel" && <HotelBrainPanel lang={lang} />}
 
       {activeTab === "recovery" && (
         <ComplaintRecovery

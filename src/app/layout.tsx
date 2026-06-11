@@ -22,6 +22,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" className={inter.variable}>
       <body>
         <div className="sky-calm" aria-hidden />
+        {/* Living light — two slow-drifting bloom layers above the weather sky */}
+        <div className="sky-drift" aria-hidden />
         <CursorGlow />
         <div className="relative z-[1]">{children}</div>
       </body>

@@ -15,6 +15,8 @@ const DETAIL = {
     risk: "Risk reason",
     action: "Recommended action",
     safetyGate: "Agent proposal vs safety gate",
+    learned: "Learned from past cases",
+    learnedHint: (n: number) => `This decision drew on ${n} similar past case${n > 1 ? "s" : ""} from case memory`,
     gateAgreed: "Policy confirmed the agent's proposal",
     gateOverruled: "Deterministic safety gate overrode the agent",
     gateRulesOnly: "Agent unavailable — status computed by deterministic rules only",
@@ -37,6 +39,8 @@ const DETAIL = {
     risk: "风险原因",
     action: "建议动作",
     safetyGate: "Agent 提议 vs 安全门",
+    learned: "从历史案例学习",
+    learnedHint: (n: number) => `该决策参考了案例库中 ${n} 条相似历史案例`,
     gateAgreed: "策略确认了 Agent 的提议",
     gateOverruled: "确定性安全门改判了 Agent 的提议",
     gateRulesOnly: "Agent 不可用 — 状态完全由确定性规则计算",
@@ -185,6 +189,26 @@ export default function PromiseDetailDrawer({
                   ))}
                 </ul>
               </Section>
+
+              {decision.learning_provenance && decision.learning_provenance.length > 0 && (
+                <Section title={t.learned}>
+                  <p className="mb-2 text-[11px] text-white/45">{t.learnedHint(decision.learning_provenance.length)}</p>
+                  <div className="space-y-1.5">
+                    {decision.learning_provenance.map((c, i) => (
+                      <div key={i} className="rounded-xl border border-violet-300/20 bg-violet-400/[0.07] px-3 py-2">
+                        <div className="flex items-start justify-between gap-2">
+                          <span className="text-[12px] font-medium leading-snug text-white/85">{c.scenario}</span>
+                          <span className="tnum shrink-0 font-mono text-[10px] text-white/40">{(c.similarity * 100).toFixed(0)}%</span>
+                        </div>
+                        <p className="mt-1 text-[11.5px] leading-relaxed text-white/60">{c.lesson}</p>
+                        <span className="mt-1.5 inline-block rounded-md border border-white/10 bg-white/[0.05] px-1.5 py-0.5 text-[9.5px] uppercase tracking-wide text-white/45">
+                          {c.source.replace(/_/g, " ")}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </Section>
+              )}
 
               <Section title={t.risk}>
                 <p className="text-[13px] leading-5 text-white/70">{decision.risk_reason}</p>
