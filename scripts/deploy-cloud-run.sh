@@ -20,13 +20,30 @@ PROJECT="${GCP_PROJECT:-stayops-498807}"
 REGION="${GCP_REGION:-us-central1}"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
-# Pull Phoenix config from .env.local (never committed).
-PHOENIX_COLLECTOR_ENDPOINT="$(grep -E '^PHOENIX_COLLECTOR_ENDPOINT=' "$ROOT/.env.local" | cut -d= -f2-)"
-PHOENIX_API_KEY="$(grep -E '^PHOENIX_API_KEY=' "$ROOT/.env.local" | cut -d= -f2-)"
-GMAIL_CLIENT_ID="$(grep -E '^GMAIL_CLIENT_ID=' "$ROOT/.env.local" | cut -d= -f2-)"
-GMAIL_CLIENT_SECRET="$(grep -E '^GMAIL_CLIENT_SECRET=' "$ROOT/.env.local" | cut -d= -f2-)"
-GMAIL_REDIRECT_URI="$(grep -E '^GMAIL_REDIRECT_URI=' "$ROOT/.env.local" | cut -d= -f2-)"
-GMAIL_REFRESH_TOKEN="$(grep -E '^GMAIL_REFRESH_TOKEN=' "$ROOT/.env.local" | cut -d= -f2-)"
+read_env() {
+  local name="$1"
+  if [ -n "${!name:-}" ]; then
+    printf '%s' "${!name}"
+    return
+  fi
+  if [ -f "$ROOT/.env.local" ]; then
+    grep -E "^${name}=" "$ROOT/.env.local" 2>/dev/null | tail -n 1 | cut -d= -f2- || true
+  fi
+}
+
+APP_ENV_VARS="GOOGLE_GENAI_USE_VERTEXAI=true,GOOGLE_CLOUD_PROJECT=$PROJECT,GOOGLE_CLOUD_LOCATION=global,GEMINI_MODEL=gemini-3.5-flash,GMAIL_OAUTH_SHOW_TOKEN=false"
+append_app_env_if_present() {
+  local name="$1"
+  local value
+  value="$(read_env "$name")"
+  if [ -n "$value" ]; then
+    APP_ENV_VARS="$APP_ENV_VARS,$name=$value"
+  fi
+}
+
+for name in PHOENIX_COLLECTOR_ENDPOINT PHOENIX_API_KEY GMAIL_CLIENT_ID GMAIL_CLIENT_SECRET GMAIL_REDIRECT_URI GMAIL_REFRESH_TOKEN; do
+  append_app_env_if_present "$name"
+done
 
 echo "==> [0/3] One-time setup: APIs + Cloud Build permissions for the default compute SA ..."
 echo "==> Target project: $PROJECT"
@@ -43,7 +60,7 @@ gcloud run deploy stayops \
   --project "$PROJECT" --region "$REGION" \
   --allow-unauthenticated \
   --max-instances 1 --memory 1Gi --timeout 300 \
-  --set-env-vars "GOOGLE_GENAI_USE_VERTEXAI=true,GOOGLE_CLOUD_PROJECT=$PROJECT,GOOGLE_CLOUD_LOCATION=global,GEMINI_MODEL=gemini-3.5-flash,PHOENIX_COLLECTOR_ENDPOINT=$PHOENIX_COLLECTOR_ENDPOINT,PHOENIX_API_KEY=$PHOENIX_API_KEY,GMAIL_CLIENT_ID=$GMAIL_CLIENT_ID,GMAIL_CLIENT_SECRET=$GMAIL_CLIENT_SECRET,GMAIL_REDIRECT_URI=$GMAIL_REDIRECT_URI,GMAIL_REFRESH_TOKEN=$GMAIL_REFRESH_TOKEN,GMAIL_OAUTH_SHOW_TOKEN=false" \
+  --update-env-vars "$APP_ENV_VARS" \
   --quiet
 
 APP_URL="$(gcloud run services describe stayops --project "$PROJECT" --region "$REGION" --format 'value(status.url)')"
