@@ -33,6 +33,21 @@ export function getDb(): DatabaseSync {
       promise_id TEXT PRIMARY KEY,
       at TEXT NOT NULL
     );
+    -- Created here (not only lazily in caseMemory) so Postgres hydration at
+    -- boot can restore rows before the first caseMemory access.
+    CREATE TABLE IF NOT EXISTS case_memory (
+      case_id INTEGER PRIMARY KEY AUTOINCREMENT,
+      scenario TEXT NOT NULL,
+      guest_request TEXT NOT NULL,
+      correct_handling TEXT NOT NULL,
+      wrong_handling TEXT,
+      lesson TEXT NOT NULL,
+      tags TEXT NOT NULL DEFAULT '[]',
+      source TEXT NOT NULL DEFAULT 'corpus',
+      embedding_json TEXT,
+      embedding_model TEXT,
+      created_at TEXT NOT NULL
+    );
   `);
   db = handle;
   return db;

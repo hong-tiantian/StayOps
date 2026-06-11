@@ -7,6 +7,11 @@ export interface TabDef {
   label: string;
 }
 
+export interface HotelOption {
+  hotel_id: string;
+  name: string;
+}
+
 export default function AppShell({
   tabs,
   activeTab,
@@ -22,6 +27,9 @@ export default function AppShell({
   onLang,
   bookings,
   onBooking,
+  hotels,
+  activeHotelId,
+  onHotel,
   children,
 }: {
   tabs: TabDef[];
@@ -38,6 +46,9 @@ export default function AppShell({
   onLang: (lang: Lang) => void;
   bookings: Array<{ booking_id: string; company_name: string }>;
   onBooking: (id: string) => void;
+  hotels?: HotelOption[];
+  activeHotelId?: string;
+  onHotel?: (id: string) => void;
   children: React.ReactNode;
 }) {
   const t = ui[lang];
@@ -121,6 +132,27 @@ export default function AppShell({
                 <div className="text-[10px] text-white/55">{t.nav.tagline}</div>
               </div>
             </div>
+
+            {hotels && hotels.length > 0 && onHotel && (
+              <div className="flex h-8 items-center gap-1.5 rounded-xl border border-white/12 bg-white/[0.06] pl-2.5 pr-1 backdrop-blur-2xl">
+                <span
+                  className="h-1.5 w-1.5 shrink-0 rounded-full"
+                  style={{ background: "rgb(var(--ambient))", boxShadow: "0 0 6px rgb(var(--ambient))" }}
+                />
+                <select
+                  value={activeHotelId}
+                  onChange={(e) => onHotel(e.target.value)}
+                  title="Active hotel persona — switching changes the SOP corpus the agent reasons over"
+                  className="h-full max-w-[180px] bg-transparent pr-1 text-xs font-semibold text-white outline-none"
+                >
+                  {hotels.map((h) => (
+                    <option key={h.hotel_id} value={h.hotel_id} className="bg-slate-900">
+                      {h.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             <select
               value={bookingId}

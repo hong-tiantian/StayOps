@@ -25,13 +25,19 @@ export function adkConfigured(): boolean {
   return !!process.env.ADK_AGENT_URL;
 }
 
-export async function runAdkAgent(booking_id: string, messages?: Message[]): Promise<AdkRunResult> {
+export async function runAdkAgent(
+  booking_id: string,
+  messages?: Message[],
+  trusted_context?: string
+): Promise<AdkRunResult> {
   const url = process.env.ADK_AGENT_URL;
   if (!url) throw new Error("ADK_AGENT_URL not set");
+  // `context` carries the hotel persona + retrieved SOP/case block. ADK builds
+  // that accept it gain RAG grounding; older builds ignore the extra field.
   const res = await fetch(`${url.replace(/\/$/, "")}/audit`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ booking_id, messages }),
+    body: JSON.stringify({ booking_id, messages, context: trusted_context }),
   });
   if (!res.ok) throw new Error(`ADK agent error: HTTP ${res.status}`);
   const data = (await res.json()) as { proposals?: AgentProposal[]; tool_calls?: ToolCall[] };

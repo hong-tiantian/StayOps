@@ -1,0 +1,576 @@
+[
+  {
+    "scenario": "OTA booking, flight delayed past front-desk closing time (guest lands ~11pm, desk closes 23:00)",
+    "guest_request": "My flight is delayed and I will only reach the hotel around midnight - please make sure someone can let me in and keep my room.",
+    "correct_handling": "Verify the OTA voucher against the RMS record, note 'late check-in' for the evening shift, confirm to the guest that the late arrival is NOTED and explain the night-manager procedure (phone number posted at the door). The room is held because it is prepaid - say that explicitly. Never promise the desk itself will be open.",
+    "wrong_handling": "Replying 'no problem, we'll be here' - the desk closes at 23:00 and the guest arrives to a locked door with no instructions.",
+    "lesson": "Late arrivals at limited-hours properties are an arrival-procedure problem, not a room-availability problem. Confirm the procedure, not the staffing.",
+    "tags": [
+      "late_check_in",
+      "ota",
+      "night_manager"
+    ],
+    "source": "operator_experience"
+  },
+  {
+    "scenario": "Third-party prepaid booking pays with a virtual credit card (VCC)",
+    "guest_request": "We prepaid through Booking.com with a corporate card - is everything settled?",
+    "correct_handling": "Mark VCC in the reservation notes, retrieve the card and expiry from the OTA extranet, charge on the morning of arrival via POS, then generate receipt and invoice so the balance is zero. Tell the guest payment is handled through the booking channel and nothing is needed at the desk.",
+    "wrong_handling": "Asking the guest for their physical card at check-in, or promising 'payment is complete' before the VCC has actually been charged.",
+    "lesson": "VCC bookings have a charging procedure with a specific timing. Do not confirm settlement before the charge exists.",
+    "tags": [
+      "vcc",
+      "ota",
+      "billing"
+    ],
+    "source": "operator_experience"
+  },
+  {
+    "scenario": "Guest on a 7-night OTA booking asks for a room-type upgrade when the higher category is sold out on some nights",
+    "guest_request": "If there is any availability we would love to upgrade to a larger room - happy to discuss the rate difference.",
+    "correct_handling": "Check the full stay window: can rooms be freed by moving unassigned bookings or via cancellations? If only part of the stay can upgrade (e.g. the last 3 nights), offer that option and WAIT for the guest's reply. After agreement, charge the difference and rebalance the daily rate across all nights, then update receipt and invoice.",
+    "wrong_handling": "Confirming the upgrade for the whole stay before checking each night, then having to walk it back.",
+    "lesson": "Upgrades are a per-night inventory question plus a billing rebalance, and partial-stay upgrades are a legitimate offer. Never confirm before checking every night.",
+    "tags": [
+      "upgrade",
+      "inventory",
+      "billing"
+    ],
+    "source": "operator_experience"
+  },
+  {
+    "scenario": "In-room dryer stops working mid-cycle on a Sunday, housekeeping does not work Sundays",
+    "guest_request": "The dryer in our apartment just stopped working and our clothes are soaking wet. Can someone come fix it today?",
+    "correct_handling": "Apologise, explain housekeeping/maintenance is off today, log a handover for the next shift so repair happens first thing, and offer a practical alternative now (guest laundry room, drying rack, or a room move if one is available).",
+    "wrong_handling": "Promising same-day repair to end the conversation - on Sunday there is nobody to send.",
+    "lesson": "Repair promises are roster-bound. Offer the alternative you CAN deliver today and a repair commitment only for when staff actually return.",
+    "tags": [
+      "maintenance",
+      "roster",
+      "sunday"
+    ],
+    "source": "operator_experience"
+  },
+  {
+    "scenario": "OTA guest asks the hotel for a tax invoice",
+    "guest_request": "For our records we still need a tax invoice issued to our company.",
+    "correct_handling": "Check the channel: OTA-prepaid bookings already received an invoice from the OTA - explain that and offer the hotel's folio for incidentals only. For direct bookings, collect legal company name, billing contact and address before promising the invoice. Internal invoice/receipt must still be generated for reconciliation either way.",
+    "wrong_handling": "Promising a hotel tax invoice for an OTA-prepaid rate - the hotel never charged the guest, so it cannot invoice that amount.",
+    "lesson": "Invoice questions are channel questions first. Who charged the guest determines who can invoice.",
+    "tags": [
+      "invoice",
+      "ota",
+      "billing"
+    ],
+    "source": "operator_experience"
+  },
+  {
+    "scenario": "Booking requires a parking spot for the whole week",
+    "guest_request": "I also need a parking spot for a rental car for the whole week.",
+    "correct_handling": "Note 'car parking' with the nightly rate in the reservation, add the car park line to the confirmation letter, and ask for the plate and expected arrival time (rental cars: plate can follow after pickup). Parking is subject to availability - say so.",
+    "wrong_handling": "Silently adding parking without the rate on the confirmation letter - the guest disputes the charge at check-out.",
+    "lesson": "Paid extras must appear on the confirmation letter with their price at booking time, not as a surprise at check-out.",
+    "tags": [
+      "parking",
+      "confirmation_letter",
+      "extras"
+    ],
+    "source": "operator_experience"
+  },
+  {
+    "scenario": "Guest demands written confirmation of early check-in at 7am after a red-eye flight",
+    "guest_request": "Please have our room ready for check-in at 7am sharp - we really need this confirmed.",
+    "correct_handling": "Note the request, explain readiness depends on tonight's departures and the morning housekeeping run, promise to PRIORITISE the room and offer luggage storage plus a definite fallback (e.g. guaranteed by 14:00). Offer to call/email the moment the room is ready.",
+    "wrong_handling": "Writing 'confirmed, your room will be ready at 7am' - if the previous guest checks out late, the promise is broken in writing.",
+    "lesson": "Early check-in can be prioritised, never guaranteed. Give the guest a concrete fallback and proactive notification instead of a fake certainty.",
+    "tags": [
+      "early_check_in",
+      "expectations"
+    ],
+    "source": "operator_experience"
+  },
+  {
+    "scenario": "OTA booking arrives with mandatory RMS fields the channel never supplies (postcode, phone, company)",
+    "guest_request": "(internal) New Booking.com reservation is missing postcode, phone and company fields.",
+    "correct_handling": "Fill required fields with the documented placeholder so the record saves, set company to 'Up to date' and ask the guest at check-in; if they decline to say, set 'leisure'. Never block check-in on missing OTA metadata.",
+    "wrong_handling": "Emailing the guest a form demanding postcode and phone before arrival - friction for data the desk can capture in 10 seconds at check-in.",
+    "lesson": "Distinguish data the OPERATION needs now (payment, arrival time) from data the SYSTEM wants eventually. Only chase the guest for the former.",
+    "tags": [
+      "ota",
+      "rms",
+      "data_hygiene"
+    ],
+    "source": "operator_experience"
+  },
+  {
+    "scenario": "Guest asks to bring a small dog, claiming phone approval",
+    "guest_request": "We're bringing our small dog. The person on the phone said it should be fine. Can you confirm?",
+    "correct_handling": "Check the hotel's actual pet policy before replying. If pets are not permitted, apologise, state the policy, offer free cancellation if it makes the stay unworkable, and escalate any exception to the manager. If pets are allowed with conditions (fee, weight limit), collect the details and book the right room type. Never accept 'someone said it was fine' as evidence.",
+    "wrong_handling": "Confirming the pet because the guest sounded sure - the claimed phone approval has no record.",
+    "lesson": "Unverifiable claimed approvals are not evidence. The policy plus a written record decide, and exceptions belong to the manager.",
+    "tags": [
+      "pets",
+      "policy",
+      "verification"
+    ],
+    "source": "operator_experience"
+  },
+  {
+    "scenario": "Guest pushes for written guarantees of free perks 'because our travel agent said it is standard'",
+    "guest_request": "CONFIRM IN WRITING right now that early check-in is GUARANTEED and a complimentary suite upgrade is included.",
+    "correct_handling": "Stay calm and split the asks: early check-in becomes a prioritised request with a fallback; the free upgrade is quoted from policy (manager approval required / not included in OTA rates) with the paid-upgrade alternative offered. Put in writing ONLY what policy supports.",
+    "wrong_handling": "Replying 'yes to both' to defuse the pressure - the written reply becomes a binding promise the desk cannot honour.",
+    "lesson": "Pressure and urgency do not change policy. Anything in writing must be deliverable; decompose aggressive bundles into per-item honest answers.",
+    "tags": [
+      "overpromise",
+      "pressure",
+      "upgrade",
+      "early_check_in"
+    ],
+    "source": "operator_experience"
+  },
+  {
+    "scenario": "Corporate group books rooms plus a meeting room with equipment needs",
+    "guest_request": "We need the projector working before our 2pm board meeting - it MUST not fail.",
+    "correct_handling": "Verify the equipment exists in the booked space, then create a setup task due well BEFORE the meeting start (setup lead time, e.g. ready by 12:00 for a 14:00 meeting) with a named owner and a test step. Confirm to the guest with the setup time, not just 'it will work'.",
+    "wrong_handling": "Confirming 'the projector will be ready' with no task, no owner and no test slot - discovered broken at 13:55.",
+    "lesson": "Equipment promises are only as good as the dated, owned task behind them. Confirm the preparation, and build in test time.",
+    "tags": [
+      "events",
+      "av",
+      "task_planning"
+    ],
+    "source": "operator_experience"
+  },
+  {
+    "scenario": "Guest reports leaving a phone charger in the room after check-out",
+    "guest_request": "I think I left my charger in room 12 - can you post it to me?",
+    "correct_handling": "Check the lost-and-found log and storage first; if not logged, dispatch housekeeping to inspect the room. Only after the item is physically found do you discuss postage and cost. Keep the guest updated at each step.",
+    "wrong_handling": "Promising 'we'll post it tomorrow' before anyone has confirmed the item exists.",
+    "lesson": "Find first, promise second. Lost-item commitments before physical confirmation routinely turn into apologies.",
+    "tags": [
+      "lost_and_found",
+      "verification"
+    ],
+    "source": "operator_experience"
+  },
+  {
+    "scenario": "Walk-in style request: guest asks front desk to guarantee a quiet room away from the elevator for a VIP",
+    "guest_request": "Please put our CFO in a quiet room away from the elevator.",
+    "correct_handling": "Check which rooms meet the constraints (quiet zone, distance from lift) and their readiness; if candidates exist, request a manager-approved room block so the room cannot be given away, then confirm 'blocked pending arrival'. Quiet-room promises without a block evaporate during a busy shift.",
+    "wrong_handling": "Saying 'noted, no problem' without blocking - evening shift assigns the room to someone else.",
+    "lesson": "Preference promises need an inventory action (block) behind them, not a note. No block, no promise.",
+    "tags": [
+      "quiet_room",
+      "vip",
+      "room_block"
+    ],
+    "source": "operator_experience"
+  },
+  {
+    "scenario": "A guest must check out early due to an urgent personal emergency shortly after checking in.",
+    "guest_request": "I have an emergency and need to return home immediately. Can I get a refund for the nights I won't be staying?",
+    "correct_handling": "Express empathy, process the early check-out, explain the cancellation policy clearly, and offer a partial refund or a future stay credit as a gesture of goodwill.",
+    "wrong_handling": "Rigidly enforcing a non-refundable policy without empathy or failing to offer alternative solutions like future stay credits.",
+    "lesson": "Always handle emergency early departures with empathy and offer flexible alternatives like future credits when refunds are restricted by policy.",
+    "tags": [
+      "early_departure",
+      "refund_policy"
+    ],
+    "source": "booking_reviews"
+  },
+  {
+    "scenario": "A guest experiences external equipment noise and crowded breakfast service during an expensive stay.",
+    "guest_request": "The AC fans outside are keeping me awake, and the breakfast room is too crowded. Can you resolve this?",
+    "correct_handling": "Apologize for the noise, offer an immediate room move to a quieter area, and provide a breakfast discount or alternative dining times to manage crowding.",
+    "wrong_handling": "Ignoring the noise complaint and failing to manage breakfast capacity expectations, leaving the guest feeling overcharged.",
+    "lesson": "Proactively offer room moves for mechanical noise issues and manage peak breakfast hours to prevent guest dissatisfaction.",
+    "tags": [
+      "noise_complaint",
+      "room_move",
+      "breakfast_service"
+    ],
+    "source": "booking_reviews"
+  },
+  {
+    "scenario": "A guest is denied entry to an included breakfast venue and then locked out of their room while trying to retrieve proof.",
+    "guest_request": "Please let me into the breakfast room as promised in my welcome letter, and fix my deactivated key card.",
+    "correct_handling": "Apologize, grant immediate access to the breakfast venue, verify the guest's package details internally, and promptly replace the malfunctioning key card.",
+    "wrong_handling": "Demanding physical proof of a promised amenity and allowing a key card malfunction to lock the guest out of their room.",
+    "lesson": "Never require guests to produce physical paperwork to claim promised amenities; verify details internally and ensure key cards remain functional.",
+    "tags": [
+      "amenity_access",
+      "key_card_issue",
+      "staff_training"
+    ],
+    "source": "booking_reviews"
+  },
+  {
+    "scenario": "A guest paying in cash is frustrated by a mandatory credit card pre-authorization policy for incidentals.",
+    "guest_request": "I paid in cash, so why do I need to provide a credit card? Can you waive this requirement?",
+    "correct_handling": "Explain the security deposit policy warmly, offer alternative options like a cash deposit, and maintain a professional, welcoming attitude.",
+    "wrong_handling": "Enforcing the credit card policy with a cold, defensive attitude, making the guest feel unwelcome.",
+    "lesson": "Clearly communicate incidental deposit policies prior to arrival and train staff to explain security holds empathetically.",
+    "tags": [
+      "payment_policy",
+      "customer_service",
+      "front_desk"
+    ],
+    "source": "booking_reviews"
+  },
+  {
+    "scenario": "Housekeeping knocking on guest doors early in the morning to start cleaning.",
+    "guest_request": "Please do not disturb me or knock on my door early in the morning while I am sleeping.",
+    "correct_handling": "Instruct housekeeping to respect 'Do Not Disturb' signs and prioritize vacant rooms or late check-outs early in their shifts, rather than knocking on occupied rooms.",
+    "wrong_handling": "Housekeeper knocked at 8:30 AM and defended the intrusion by stating her shift started at 8:00 AM.",
+    "lesson": "Internal staff shift schedules must never override guest privacy, sleep, or 'Do Not Disturb' requests.",
+    "tags": [
+      "housekeeping",
+      "guest_privacy",
+      "staff_training"
+    ],
+    "source": "booking_reviews"
+  },
+  {
+    "scenario": "Staff telling departing guests waiting for hotel-arranged transport to leave the lobby due to outside beverages.",
+    "guest_request": "Can we wait in the lobby with our coffees for the driver the hotel arranged for us?",
+    "correct_handling": "Exercise empathy and flexibility for departing guests, especially pregnant or elderly individuals. Politely allow them to finish their drinks inside or offer to transfer them to hotel cups.",
+    "wrong_handling": "Rudely ordering a pregnant guest and her 80-year-old grandmother to wait outside because they had outside coffee cups.",
+    "lesson": "Lobby policies regarding outside food and drink must be enforced with empathy, flexibility, and common sense, especially for vulnerable guests.",
+    "tags": [
+      "lobby_policy",
+      "guest_relations",
+      "empathy"
+    ],
+    "source": "booking_reviews"
+  },
+  {
+    "scenario": "Guest experiences a delayed check-in and insufficient room amenities for a double occupancy booking.",
+    "guest_request": "I want my room to be ready at the promised check-in time and properly stocked with toiletries for two people.",
+    "correct_handling": "Apologize for the delay, offer a complimentary beverage or lounge access during the wait, and coordinate with housekeeping to ensure double-occupancy rooms are fully stocked.",
+    "wrong_handling": "Letting the guest wait without updates or service recovery, and failing to audit room amenities prior to arrival.",
+    "lesson": "Proactively manage check-in delays with service recovery and ensure housekeeping audits match guest occupancy counts.",
+    "tags": [
+      "check_in_delay",
+      "housekeeping_amenities"
+    ],
+    "source": "booking_reviews"
+  },
+  {
+    "scenario": "Guest is assigned a room without air conditioning and discovers an electrical safety hazard on the towel warmer.",
+    "guest_request": "I expect a room with functional climate control and safe, well-maintained fixtures.",
+    "correct_handling": "Ensure room descriptions clearly state which tiers lack AC, conduct strict pre-arrival maintenance checks, and immediately relocate the guest if a safety hazard is reported.",
+    "wrong_handling": "Selling a room with exposed electrical wires and failing to manage expectations regarding room-tier amenities.",
+    "lesson": "Never compromise on guest safety; inspect rooms thoroughly and clearly communicate tier-specific amenities like air conditioning.",
+    "tags": [
+      "room_maintenance",
+      "safety_hazard"
+    ],
+    "source": "booking_reviews"
+  },
+  {
+    "scenario": "A guest reports a malfunctioning in-room hairdryer.",
+    "guest_request": "The hairdryer in my room isn't working. Can I get a replacement?",
+    "correct_handling": "Acknowledge the inconvenience immediately, dispatch housekeeping or maintenance to deliver a tested, working replacement within 5 minutes, and confirm the guest is satisfied.",
+    "lesson": "Resolving minor in-room amenity issues within minutes prevents negative reviews and demonstrates excellent service recovery.",
+    "tags": [
+      "amenity_issue",
+      "service_recovery"
+    ],
+    "source": "booking_reviews"
+  },
+  {
+    "scenario": "A guest arrives to find a pre-requested baby cot missing, experiences delays in receiving it, and faces issues with unrecorded prepaid breakfasts.",
+    "guest_request": "I requested a baby cot in my booking and paid for extra breakfasts, but the cot isn't here and the restaurant says my breakfast isn't on the list.",
+    "correct_handling": "Verify pre-arrival requests during morning audits, place the cot before check-in, and ensure prepaid packages are synced in the PMS. If a delay occurs, provide an honest timeline and follow up immediately.",
+    "wrong_handling": "Failing to prepare the cot, making empty promises about when it would arrive, and failing to communicate prepaid meal status to the restaurant team.",
+    "lesson": "Never promise a delayed amenity without verifying its delivery, and ensure all prepaid package add-ons are accurately synced across departments.",
+    "tags": [
+      "pre_arrival_requests",
+      "internal_communication",
+      "amenity_delivery"
+    ],
+    "source": "booking_reviews"
+  },
+  {
+    "scenario": "A guest discovers food residue from an unrelated dish inside their coffee pot and on their milk jug during breakfast.",
+    "guest_request": "There is a baked bean in my coffee pot and bean juice on my milk jug. Can I get clean ones?",
+    "correct_handling": "Apologize sincerely, immediately replace the entire coffee and milk service with verified clean items, offer to waive the breakfast charge, and report the hygiene failure to the kitchen manager.",
+    "wrong_handling": "Serving poorly washed tableware and failing to inspect food and beverage service items before they are delivered to the guest.",
+    "lesson": "Strict adherence to tableware inspection protocols is vital, as cross-contamination severely damages guest trust in food safety.",
+    "tags": [
+      "food_safety",
+      "restaurant_service",
+      "cleanliness"
+    ],
+    "source": "booking_reviews"
+  },
+  {
+    "scenario": "Guest is assigned a room where the window opens to a ventilation shaft with unpleasant odors.",
+    "guest_request": "Can I get a room with fresh air and a window that doesn't open to a smelly shaft?",
+    "correct_handling": "Apologize for the discomfort, immediately offer a room change to an outward-facing room, and log the shaft odor for engineering inspection.",
+    "wrong_handling": "Assigning rooms facing ventilation shafts without checking for odor issues or failing to offer an immediate room change.",
+    "lesson": "Never assign or promise a comfortable room environment without verifying that adjacent ventilation shafts are free of odors.",
+    "tags": [
+      "room_assignment",
+      "facility_maintenance"
+    ],
+    "source": "booking_reviews"
+  },
+  {
+    "scenario": "Guest pays for an executive upgrade but experiences broken air conditioning and a lack of hot water.",
+    "guest_request": "I paid extra for an executive room, but the AC is broken and the shower goes cold after two minutes.",
+    "correct_handling": "Apologize, dispatch maintenance immediately, and offer an alternative executive room. If none are available, downgrade the guest and refund the upgrade fee.",
+    "wrong_handling": "Selling paid upgrades to premium rooms without verifying that basic utilities like hot water and AC are fully functional.",
+    "lesson": "Do not upsell guests to premium rooms unless housekeeping and maintenance have verified all utilities are 100% operational.",
+    "tags": [
+      "room_upgrade",
+      "utility_failure"
+    ],
+    "source": "booking_reviews"
+  },
+  {
+    "scenario": "Executive room guest faces multiple issues including no AC, generator noise, non-existent WiFi, and slow maintenance response.",
+    "guest_request": "My executive room has no AC, constant generator noise, and no WiFi. I need this fixed or a new room.",
+    "correct_handling": "Acknowledge the compounding failures, prioritize an immediate room move away from the generator, provide a complimentary WiFi hotspot, and refund the executive premium.",
+    "wrong_handling": "Ignoring the cumulative impact of multiple utility failures and delaying maintenance response times for high-paying guests.",
+    "lesson": "Premium rooms must be physically isolated from heavy machinery noise and backed by priority maintenance response times.",
+    "tags": [
+      "premium_rooms",
+      "service_recovery"
+    ],
+    "source": "booking_reviews"
+  },
+  {
+    "scenario": "Guest is assigned an extremely small single room with a hazardous elevated shower and missing basic amenities.",
+    "guest_request": "This room is tiny and stifling, the shower feels unsafe, and I don't even have enough towels or a luggage rack.",
+    "correct_handling": "Ensure micro-rooms are accurately described at booking, pre-stock all basic amenities, and immediately offer a room change if a guest reports safety concerns regarding room layout.",
+    "wrong_handling": "Failing to stock basic amenities for a multi-night stay and ignoring the safety risks of non-standard bathroom layouts.",
+    "lesson": "Always disclose non-standard room layouts and shower configurations during the booking process to prevent safety complaints.",
+    "tags": [
+      "room_description",
+      "housekeeping"
+    ],
+    "source": "booking_reviews"
+  },
+  {
+    "scenario": "Guest disturbed by early morning noise from staff emptying bins near guest rooms.",
+    "guest_request": "Can I have a quiet room where I won't be woken up by early morning trash collection or staff operations?",
+    "correct_handling": "Schedule internal waste management and contractor collections during non-quiet hours (e.g., after 8:00 AM). Assign light sleepers to rooms away from service areas and loading docks.",
+    "wrong_handling": "Allowing staff or contractors to perform noisy operations like emptying bins directly outside guest rooms during overnight quiet hours.",
+    "lesson": "Never promise a quiet night's sleep without actively managing the scheduling of noisy back-of-house operations.",
+    "tags": [
+      "noise_control",
+      "operations_scheduling",
+      "room_assignment"
+    ],
+    "source": "booking_reviews"
+  },
+  {
+    "scenario": "Guest experiencing unstable Wi-Fi, frequent keycard failures, and a confusing physical card system for breakfast verification.",
+    "guest_request": "I need reliable Wi-Fi, working room keys, and a simple way to access the breakfast I paid for.",
+    "correct_handling": "Maintain robust Wi-Fi infrastructure, replace faulty keycard encoders, and use a digital PMS-linked guest list at breakfast instead of confusing physical cards.",
+    "wrong_handling": "Relying on physical card systems that confuse guests and failing to verify guest identity securely when keycards fail.",
+    "lesson": "Simplify guest verification processes and ensure basic amenities like Wi-Fi and keycards function reliably to prevent friction.",
+    "tags": [
+      "technology",
+      "security",
+      "breakfast_operations"
+    ],
+    "source": "booking_reviews"
+  },
+  {
+    "scenario": "Guest noting inconsistent room sizes for the same price point, street noise, and lack of air conditioning.",
+    "guest_request": "I would like a quiet, spacious room with air conditioning.",
+    "correct_handling": "Clearly disclose room dimensions, lack of A/C, and potential street noise during booking, and offer fans or room upgrades proactively.",
+    "wrong_handling": "Selling rooms with high variance in size at the same price point without managing expectations regarding noise or climate control.",
+    "lesson": "Always disclose room limitations like lack of A/C or street noise upfront to prevent guest disappointment.",
+    "tags": [
+      "room_disclosures",
+      "expectation_management",
+      "facilities"
+    ],
+    "source": "booking_reviews"
+  },
+  {
+    "scenario": "Guest experiences room discrepancies, lift noise, and a double-billing issue that the hotel refuses to resolve directly.",
+    "guest_request": "Please resolve this double-charge on my card and move me to a room that matches the booking photos and is quiet.",
+    "correct_handling": "Validate the billing error immediately, initiate a refund/reversal, and provide a transaction receipt. For room issues, offer an immediate room move to a matching category away from the elevator shaft.",
+    "wrong_handling": "Deflecting complaints to irrelevant departments and telling the guest they cannot resolve an internal double-billing error, forcing them to dispute it with their bank.",
+    "lesson": "Never tell a guest you cannot resolve a billing error on your end; always audit transactions immediately and process refunds directly to maintain trust.",
+    "tags": [
+      "billing_error",
+      "room_discrepancy",
+      "front_desk"
+    ],
+    "source": "booking_reviews"
+  },
+  {
+    "scenario": "A family of four is checked into a room with insufficient towels and toiletries.",
+    "guest_request": "We need enough towels and toiletries for four people, as we only have two towels and one small shower gel.",
+    "correct_handling": "Apologize for the oversight, immediately dispatch housekeeping with extra towels and amenities, and update the guest profile to ensure future setups match the occupancy count.",
+    "wrong_handling": "Failing to audit room readiness and occupancy requirements prior to guest arrival.",
+    "lesson": "Always verify that room amenities and linen counts match the registered guest occupancy before check-in.",
+    "tags": [
+      "housekeeping",
+      "room_amenities"
+    ],
+    "source": "booking_reviews"
+  },
+  {
+    "scenario": "Guest experiences unauthorized restaurant charges, an opened bottle of wine in their room, and severe credit card fraud/duplication after check-in.",
+    "guest_request": "Please investigate these unauthorized charges on my restaurant bill and the security breach regarding my credit card details.",
+    "correct_handling": "Immediately remove disputed restaurant charges, escalate the credit card fraud claim to senior management and security for a forensic audit of the PMS/payment terminal, and cooperate fully with financial institutions.",
+    "wrong_handling": "Dismissing the guest's billing complaints and failing to take immediate security action regarding suspected credit card duplication.",
+    "lesson": "Treat suspected credit card fraud and unauthorized billing with immediate, high-priority escalation and rigorous security audits.",
+    "tags": [
+      "billing_fraud",
+      "security",
+      "guest_relations"
+    ],
+    "source": "booking_reviews"
+  },
+  {
+    "scenario": "Guest experiences low water pressure in the shower and complains about paid Wi-Fi.",
+    "guest_request": "Can you fix the low water pressure in my shower, and can I get free Wi-Fi access?",
+    "correct_handling": "Dispatch maintenance immediately to check the water pressure valve, explain the Wi-Fi policy clearly, and offer a complimentary Wi-Fi upgrade as a gesture of goodwill for the plumbing inconvenience.",
+    "wrong_handling": "Ignoring the maintenance issue and failing to offer any service recovery for the poor water pressure.",
+    "lesson": "Use complimentary basic amenities like Wi-Fi as an immediate, low-cost service recovery tool when physical room features fail.",
+    "tags": [
+      "maintenance",
+      "service_recovery",
+      "amenities"
+    ],
+    "source": "booking_reviews"
+  },
+  {
+    "scenario": "A guest experiences slow service in the lobby bar and has their unfinished drink cleared away without permission.",
+    "guest_request": "I would like to finish my drink at my own pace and receive prompt service from the bar staff.",
+    "correct_handling": "Staff must maintain active situational awareness of the lounge, acknowledge waiting guests immediately, and always verbally confirm with a guest before clearing any glassware or plates.",
+    "wrong_handling": "Ignoring waiting guests and prematurely clearing a guest's active drink without asking.",
+    "lesson": "Never clear items from a guest's table without asking, and ensure constant situational awareness in all service areas.",
+    "tags": [
+      "food_and_beverage",
+      "service_standards",
+      "staff_attentiveness"
+    ],
+    "source": "booking_reviews"
+  },
+  {
+    "scenario": "A guest is repeatedly turned away from the hotel pool due to unannounced maintenance and overcrowding.",
+    "guest_request": "I would like to use the hotel pool and health club facilities during my stay.",
+    "correct_handling": "Proactively inform guests of scheduled maintenance at check-in, implement a reservation or real-time capacity tracking system for the pool, and offer alternative solutions or goodwill gestures when amenities are unavailable.",
+    "wrong_handling": "Allowing guests to walk to the facility only to find it closed or full without any prior warning or alternative options.",
+    "lesson": "Always communicate amenity closures and capacity constraints at check-in to manage expectations and avoid guest frustration.",
+    "tags": [
+      "facility_management",
+      "guest_communication",
+      "amenity_access"
+    ],
+    "source": "booking_reviews"
+  },
+  {
+    "scenario": "Guest is incorrectly charged for children's meals despite a brand-wide 'kids eat free' policy.",
+    "guest_request": "Please remove the charges for my children's meals as they should be free under the brand's policy.",
+    "correct_handling": "Apologize for the billing error, verify the brand's promotional policy immediately, and process the refund promptly without making the guest prove the policy or waiting for restaurant confirmation.",
+    "wrong_handling": "Disputing the guest's booking details, claiming ignorance of standard brand promotions, making the guest wait 20 minutes, and begrudgingly issuing a refund.",
+    "lesson": "Front desk staff must be fully trained on active brand promotions and authorized to resolve clear billing discrepancies quickly without putting the burden of proof on the guest.",
+    "tags": [
+      "billing_dispute",
+      "brand_promotions",
+      "front_desk_training"
+    ],
+    "source": "booking_reviews"
+  },
+  {
+    "scenario": "Guest experiences an extreme check-in delay and is assigned a room with no hot water.",
+    "guest_request": "I need to check into my room, and I expect it to have basic working amenities like hot water.",
+    "correct_handling": "Apologize for the delay, offer secure luggage storage in the hotel holding room, proactively assign an alternative ready room, and verify all room amenities are functional before key handover.",
+    "wrong_handling": "Forcing guests to store luggage in their own car due to unready rooms, delaying check-in by six hours, and assigning a room with defective plumbing.",
+    "lesson": "Never delay check-in for hours without offering secure luggage storage, and ensure maintenance verifies room readiness before late assignment.",
+    "tags": [
+      "room_readiness",
+      "maintenance_issue",
+      "luggage_handling"
+    ],
+    "source": "booking_reviews"
+  },
+  {
+    "scenario": "Guest experiences a delayed check-in, receives dismissive service, and is shown other backlogged bookings as an excuse.",
+    "guest_request": "Can I please check in now? I have theatre tickets and need to get ready.",
+    "correct_handling": "Acknowledge the delay with empathy, offer a secure place to store luggage, provide a realistic timeline, and offer a small gesture of goodwill like a drink voucher for the inconvenience.",
+    "wrong_handling": "Telling guests to go away repeatedly, failing to provide a realistic wait time, and dismissing their complaint by showing them a pile of other delayed check-ins.",
+    "lesson": "Never dismiss a guest's frustration by blaming operational backlogs; instead, offer empathetic communication, realistic timelines, and practical solutions.",
+    "tags": [
+      "check_in_delay",
+      "customer_service",
+      "time_management"
+    ],
+    "source": "booking_reviews"
+  },
+  {
+    "scenario": "High-volume breakfast service with unmanaged queuing and line-cutting.",
+    "guest_request": "I would like to have an organized breakfast experience where the queue system is actively enforced by staff.",
+    "correct_handling": "Station a dedicated host at the dining entrance to actively manage the queue, greet guests, and guide them to tables, ensuring line-cutters are politely redirected.",
+    "wrong_handling": "Allowing guests to bypass the queue and self-seat, leading to chaos, unfair wait times, and a poor dining experience.",
+    "lesson": "Never promise a seamless dining experience without actively managing guest flow and enforcing queue integrity during peak hours.",
+    "tags": [
+      "breakfast_service",
+      "crowd_management",
+      "service_consistency"
+    ],
+    "source": "booking_reviews"
+  },
+  {
+    "scenario": "The booked family room configuration is unavailable upon arrival.",
+    "guest_request": "I need the family room that I booked so my family can stay together in one space.",
+    "correct_handling": "Honor the booked room type; if unavailable due to overbooking, proactively offer adjacent connecting rooms or an upgrade at no extra charge, apologizing sincerely.",
+    "wrong_handling": "Offering split rooms or a lesser room type without proactive compensation or a smooth resolution.",
+    "lesson": "Do not guarantee specific room configurations unless inventory is strictly blocked, and always have a pre-approved compensation plan for downgrades.",
+    "tags": [
+      "room_allocation",
+      "overbooking",
+      "guest_compensation"
+    ],
+    "source": "booking_reviews"
+  },
+  {
+    "scenario": "Guest experiences an incorrect minibar charge, a dirty bathroom, and unhelpful concierge service.",
+    "guest_request": "Please remove this incorrect minibar charge from my bill, clean my bathroom properly, and give me accurate local directions.",
+    "correct_handling": "Apologize immediately, instantly reverse the disputed minibar charge, dispatch housekeeping for an immediate reclean, and provide accurate concierge assistance.",
+    "wrong_handling": "Charging the guest for unused minibar items and failing to verify room cleanliness prior to check-in.",
+    "lesson": "Ensure automated billing systems like minibars are verified daily, and never debate disputed minor charges with guests.",
+    "tags": [
+      "billing_dispute",
+      "housekeeping_quality",
+      "front_desk_service"
+    ],
+    "source": "booking_reviews"
+  },
+  {
+    "scenario": "Long wait times during peak check-in and check-out hours without queue management.",
+    "guest_request": "I want to check in quickly without waiting in a long, unmanaged line.",
+    "correct_handling": "Deploy a lobby host during peak hours to manage the queue, pre-verify guest details, direct traffic, and set realistic wait-time expectations.",
+    "wrong_handling": "Leaving guests to wait in long, unguided lines without any staff presence or communication.",
+    "lesson": "Active lobby management and queue triage during peak hours are essential to mitigate the perception of long wait times.",
+    "tags": [
+      "lobby_management",
+      "check_in_process",
+      "queue_management"
+    ],
+    "source": "booking_reviews"
+  },
+  {
+    "scenario": "Guest encounters stained bedding and receives a dismissive response from staff suggesting they book a better room next time.",
+    "guest_request": "My bedding is stained; please replace it, and can you offer a discount on the high parking fees?",
+    "correct_handling": "Apologize immediately, send housekeeping to replace the stained bedding, and explain parking policies clearly while offering a small gesture of goodwill for the room issue.",
+    "wrong_handling": "Deflecting blame by telling the guest they should have booked a refurbished room to avoid quality issues.",
+    "lesson": "Never suggest a guest is at fault for receiving substandard room quality, and address cleanliness issues immediately with action, not excuses.",
+    "tags": [
+      "housekeeping_quality",
+      "guest_relations",
+      "complaint_handling"
+    ],
+    "source": "booking_reviews"
+  }
+]

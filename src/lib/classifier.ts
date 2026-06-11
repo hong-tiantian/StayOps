@@ -5,6 +5,8 @@ import { runPromiseAgent, AgentProposal } from "./agent/promiseAgent";
 import { rulePromiseStatus, alignPromiseRuleKey, reconcileStatus } from "./agent/policy";
 import { isFastTrack } from "./learning/feedbackStore";
 import { adkConfigured, runAdkAgent } from "./agent/adkClient";
+import { buildAuditContext, groundNovelItem, type AuditContext } from "./hotel/auditContext";
+import { keywordScore, keywordTokens } from "./hotel/embeddings";
 import { analyzeBookingInfo } from "./infoAnalysis";
 import { planTasks } from "./taskPlanner";
 import {
@@ -39,6 +41,14 @@ function splitTypes(raw: string): PromiseType[] {
   return raw.split(";").map((t) => t.trim()).filter(Boolean) as PromiseType[];
 }
 
+export interface AuditGrounding {
+  hotel_id: string;
+  hotel_name: string;
+  retrieval_method: "embedding" | "keyword" | "none";
+  sop_hits: Array<{ doc_title: string; score: number; chunk_text: string }>;
+  case_hits: Array<{ scenario: string; lesson: string; score: number; source: string }>;
+}
+
 export interface AuditResult {
   booking_id: string;
   reasoning_source: "adk" | "gemini" | "rules";
@@ -47,6 +57,8 @@ export interface AuditResult {
   decisions: PromiseDecision[];
   task_plan: TaskPlan[];
   tool_calls: ToolCall[];
+  /** Hotel persona + retrieved SOP/case evidence used for this audit (absent on rules-only path). */
+  grounding?: AuditGrounding;
   freshness_summary: Array<{
     source_name: string;
     last_synced_at: string;
@@ -181,7 +193,29 @@ const DEFAULT_SEEDS: Record<string, Omit<DecisionSeed, "promise_id" | "booking_i
   },
 };
 
-function seedForExtraItem(extraItem: ExtraItem, bookingId: string): DecisionSeed {
+const VALID_DEPARTMENTS = new Set([
+  "front_desk", "housekeeping", "fb", "events", "sales", "concierge", "manager", "maintenance",
+]);
+
+/**
+ * For novel items the agent's OWN judgment carries the seed: department, risk
+ * reason and recommended action come from the proposal (grounded in retrieved
+ * SOP), not from a hardcoded template. Status is still capped by policy.
+ */
+function novelSeedFromProposal(proposal?: AgentProposal): Omit<DecisionSeed, "promise_id" | "booking_id" | "promise_text" | "category"> {
+  const dept = proposal && VALID_DEPARTMENTS.has(proposal.owner_department) ? proposal.owner_department : "manager";
+  return {
+    promise_type: proposal?.promise_type?.length ? proposal.promise_type.join(";") : "request_noted",
+    owner_department: dept,
+    evidence: proposal?.evidence?.[0] ?? "Agent-extracted request outside the deterministic rule library.",
+    risk_reason: proposal?.risk_reason || "No deterministic verifier is available for this item.",
+    recommended_action: proposal?.recommended_action || "Manager reviews before making any commitment.",
+    approval_required: proposal?.approval_required ?? true,
+    execution_state: "not_created",
+  };
+}
+
+function seedForExtraItem(extraItem: ExtraItem, bookingId: string, proposal?: AgentProposal): DecisionSeed {
   const ruleKey = extraItem.rule_key ?? "unknown";
   const existing = loadPromiseLedger().find((p) => p.booking_id === bookingId && p.category === ruleKey);
   if (existing) {
@@ -200,15 +234,17 @@ function seedForExtraItem(extraItem: ExtraItem, bookingId: string): DecisionSeed
     };
   }
 
-  const fallback = DEFAULT_SEEDS[ruleKey] ?? {
-    promise_type: "request_noted",
-    owner_department: "manager",
-    evidence: "Guest message contains an extra item that needs review.",
-    risk_reason: "No deterministic verifier is available for this item.",
-    recommended_action: "Manager reviews before making any commitment.",
-    approval_required: true,
-    execution_state: "not_created",
-  };
+  const fallback = DEFAULT_SEEDS[ruleKey] ?? novelSeedFromProposal(proposal);
+  const proposalGrounding = proposal
+    ? {
+        promise_type: proposal.promise_type?.length ? proposal.promise_type.join(";") : fallback.promise_type,
+        owner_department: VALID_DEPARTMENTS.has(proposal.owner_department) ? proposal.owner_department : fallback.owner_department,
+        evidence: proposal.evidence?.[0] ?? fallback.evidence,
+        risk_reason: proposal.risk_reason || fallback.risk_reason,
+        recommended_action: proposal.recommended_action || fallback.recommended_action,
+        approval_required: proposal.approval_required ?? fallback.approval_required,
+      }
+    : {};
 
   return {
     promise_id: extraItem.item_id,
@@ -216,7 +252,85 @@ function seedForExtraItem(extraItem: ExtraItem, bookingId: string): DecisionSeed
     promise_text: extraItem.text,
     category: ruleKey,
     ...fallback,
+    ...proposalGrounding,
   };
+}
+
+function hotelSopEvidence(ruleKey: string, itemText: string, context?: AuditContext): string[] {
+  if (!context) return [];
+  const supportedKeys = new Set(["parking", "early_check_in", "upgrade"]);
+  if (!supportedKeys.has(ruleKey)) return [];
+
+  const item = itemText.toLowerCase();
+  const scored = context.sop_hits
+    .map((candidate) => {
+      const title = candidate.doc_title.toLowerCase();
+      const text = `${candidate.doc_title} ${candidate.chunk_text}`.toLowerCase();
+      let bonus = 0;
+      if (
+        ruleKey === "parking" &&
+        /\b(parking|valet|car park|vehicle|plate)\b/.test(item) &&
+        /\b(parking|valet|car park|vehicle|plate)\b/.test(text)
+      ) {
+        bonus = 0.5;
+      }
+      if (
+        ruleKey === "early_check_in" &&
+        /\b(early check[- ]?in|arriv(?:e|ing|al)|check[- ]?in)\b/.test(item) &&
+        (/\bearly check[- ]?in\b/.test(text) || /\bcheck-in\b/.test(title))
+      ) {
+        bonus = 0.5;
+      }
+      if (
+        ruleKey === "upgrade" &&
+        /\b(upgrade|suite)\b/.test(item) &&
+        /\b(upgrade|suite|occupancy)\b/.test(text)
+      ) {
+        bonus = 0.5;
+      }
+      if (bonus === 0) return { hit: candidate, score: 0 };
+
+      const tokenScore = itemText
+        .toLowerCase()
+        .split(/\s+/)
+        .filter((token) => token.length > 4)
+        .filter((token) => text.includes(token)).length * 0.03;
+      return { hit: candidate, score: candidate.score + bonus + tokenScore };
+    })
+    .filter((candidate) => candidate.score >= 0.5)
+    .sort((a, b) => b.score - a.score);
+  const hit = scored[0]?.hit;
+  if (!hit) return [];
+  return [`Hotel SOP grounding (${context.hotel.name} / "${hit.doc_title}"): ${hit.chunk_text.slice(0, 240)}…`];
+}
+
+/**
+ * Per-decision learning provenance: of the past cases retrieved for this
+ * audit (embedding similarity over the whole email), keep the ones that
+ * topically overlap THIS item — that is what the drawer shows as
+ * "learned from N past cases".
+ */
+function caseProvenanceFor(
+  itemText: string,
+  context?: AuditContext
+): PromiseDecision["learning_provenance"] {
+  if (!context || context.case_hits.length === 0) return undefined;
+  const tokens = keywordTokens(itemText);
+  const matched = context.case_hits
+    .map((hit) => ({
+      hit,
+      overlap: keywordScore(tokens, `${hit.scenario} ${hit.guest_request} ${hit.lesson}`),
+    }))
+    .filter((m) => m.overlap >= 0.05)
+    .sort((a, b) => b.overlap - a.overlap)
+    .slice(0, 3)
+    .map((m) => ({
+      scenario: m.hit.scenario,
+      lesson: m.hit.lesson,
+      source: m.hit.source,
+      similarity: m.hit.score,
+    }));
+  return matched.length ? matched : undefined;
 }
 
 function applyBasicInfoGate(status: PromiseStatus, infoAnalysis: InfoAnalysis): PromiseStatus {
@@ -277,8 +391,48 @@ async function runAgentAudit(booking_id: string, messageOverride?: Message[]): P
   const intake = new ToolRunner();
   const reservation = intake.get_reservation(booking_id);
   const messages = messageOverride ?? intake.search_messages(booking_id);
-  const agent = await runPromiseAgent(messages, reservation);
-  return assembleFromProposals(booking_id, reservation, messages, agent.proposals, "gemini", agent.runner.calls, intake.calls);
+  const context = await safeBuildContext(messages);
+  const agent = await runPromiseAgent(messages, reservation, context);
+  return assembleFromProposals(booking_id, reservation, messages, agent.proposals, "gemini", agent.runner.calls, intake.calls, context);
+}
+
+/** RAG context must never take the audit down — degrade to no context. */
+async function safeBuildContext(messages: Message[]): Promise<AuditContext | undefined> {
+  try {
+    return await buildAuditContext(messages);
+  } catch (err) {
+    console.warn("[StayOps] audit context unavailable, continuing without RAG:", err);
+    return undefined;
+  }
+}
+
+function normalizedText(value: string): string {
+  return value.toLowerCase().replace(/\s+/g, " ").trim().slice(0, 80);
+}
+
+/** Match a proposal to an extra item: by rule key for library items, by text for novel ones. */
+function proposalForItem(
+  extraItem: ExtraItem,
+  proposalByRuleKey: Map<string, AgentProposal>,
+  proposals: AgentProposal[]
+): AgentProposal | undefined {
+  const ruleKey = extraItem.rule_key ?? "";
+  if (!ruleKey.startsWith("novel_")) return proposalByRuleKey.get(ruleKey);
+  const target = normalizedText(extraItem.text);
+  return proposals.find(
+    (p) => normalizedText(p.promise_text ?? "") === target || normalizedText(p.source_quote ?? "") === normalizedText(extraItem.source_quote ?? "x")
+  );
+}
+
+function groundingFromContext(context?: AuditContext): AuditGrounding | undefined {
+  if (!context) return undefined;
+  return {
+    hotel_id: context.hotel.hotel_id,
+    hotel_name: context.hotel.name,
+    retrieval_method: context.retrieval_method,
+    sop_hits: context.sop_hits.map((h) => ({ doc_title: h.doc_title, score: h.score, chunk_text: h.chunk_text })),
+    case_hits: context.case_hits.map((h) => ({ scenario: h.scenario, lesson: h.lesson, score: h.score, source: h.source })),
+  };
 }
 
 function assembleFromProposals(
@@ -288,7 +442,8 @@ function assembleFromProposals(
   proposals: AgentProposal[],
   source: "gemini" | "adk",
   agentToolCalls: ToolCall[],
-  intakeCalls: ToolCall[]
+  intakeCalls: ToolCall[],
+  context?: AuditContext
 ): AuditResult {
   const infoAnalysis = analyzeBookingInfo(booking_id, reservation, messages, proposals);
   const extraByRuleKey = new Map(infoAnalysis.extra_items.map((item) => [item.rule_key, item]));
@@ -301,16 +456,24 @@ function assembleFromProposals(
 
   const policyCalls: ToolCall[] = [];
   const decisions = infoAnalysis.extra_items.map((extraItem) => {
-    const row = seedForExtraItem(extraItem, booking_id);
-    const ruleKey = extraItem.rule_key ?? row.category;
-    const proposal = proposalByRuleKey.get(ruleKey);
+    const ruleKeyRaw = extraItem.rule_key ?? "";
+    const proposal = proposalForItem(extraItem, proposalByRuleKey, proposals);
+    const row = seedForExtraItem(extraItem, booking_id, proposal);
+    const ruleKey = ruleKeyRaw || row.category;
     const policyRunner = new ToolRunner();
-    const verdict = rulePromiseStatus(ruleKey, policyRunner, reservation);
+    const verdict = ruleKey.startsWith("novel_")
+      ? groundNovelItem(extraItem.text, context)
+      : rulePromiseStatus(ruleKey, policyRunner, reservation);
     policyCalls.push(...policyRunner.calls);
 
     const gatedStatus = applyBasicInfoGate(verdict.status, infoAnalysis);
     const { overruled } = reconcileStatus(gatedStatus, proposal?.proposed_status);
-    const evidence = [row.evidence, ...verdict.evidence];
+    const hotelEvidence = hotelSopEvidence(ruleKey, extraItem.text, context);
+    const genericEvidence =
+      ruleKey === "parking" && hotelEvidence.length
+        ? verdict.evidence.filter((item) => !item.includes("SOP-PRK"))
+        : verdict.evidence;
+    const evidence = [row.evidence, ...hotelEvidence, ...genericEvidence];
 
     if (gatedStatus !== verdict.status) {
       evidence.push(
@@ -327,7 +490,10 @@ function assembleFromProposals(
       for (const item of proposal.evidence ?? []) evidence.push(`AI: ${item}`);
     }
 
-    return buildDecision(row, gatedStatus, evidence, policyRunner.calls, proposal, extraByRuleKey.get(ruleKey), overruled);
+    return {
+      ...buildDecision(row, gatedStatus, evidence, policyRunner.calls, proposal, extraByRuleKey.get(ruleKey), overruled),
+      learning_provenance: caseProvenanceFor(extraItem.text, context),
+    };
   });
   const taskPlan = planTasks(infoAnalysis, decisions);
 
@@ -339,6 +505,7 @@ function assembleFromProposals(
     decisions,
     task_plan: taskPlan,
     tool_calls: [...intakeCalls, ...agentToolCalls, ...policyCalls],
+    grounding: groundingFromContext(context),
     freshness_summary: freshnessSummary(),
   };
 }
@@ -347,8 +514,9 @@ async function runAdkAudit(booking_id: string, messageOverride?: Message[]): Pro
   const intake = new ToolRunner();
   const reservation = intake.get_reservation(booking_id);
   const messages = messageOverride ?? intake.search_messages(booking_id);
-  const adk = await runAdkAgent(booking_id, messages);
-  return assembleFromProposals(booking_id, reservation, messages, adk.proposals, "adk", adk.tool_calls, intake.calls);
+  const context = await safeBuildContext(messages);
+  const adk = await runAdkAgent(booking_id, messages, context?.prompt_block);
+  return assembleFromProposals(booking_id, reservation, messages, adk.proposals, "adk", adk.tool_calls, intake.calls, context);
 }
 
 export function runDeterministicAudit(booking_id: string, messageOverride?: Message[]): AuditResult {

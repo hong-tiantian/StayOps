@@ -251,22 +251,69 @@ function toExtraItem(
   };
 }
 
+/**
+ * A proposal outside the 12-key rule library is NOT dropped: it becomes a
+ * `novel_N` item that carries the agent's own extraction. The policy layer
+ * still caps novel items at needs_approval/cannot_confirm, so keeping them
+ * never creates an unverified guarantee — it only stops silent data loss.
+ */
+function toNovelExtraItem(
+  ruleKey: string,
+  messages: Message[],
+  proposal: InfoAnalysisProposal,
+  text: string
+): ExtraItem {
+  const quote = findQuoteInMessages(proposal.source_quote, messages);
+  return {
+    item_id: ruleKey.toUpperCase().replace("_", "-"),
+    text,
+    source_message_id: quote.source_message_id ?? proposal.source_message_id,
+    source_quote: quote.source_quote ?? proposal.source_quote?.trim(),
+    domain: "other",
+    subtype: "novel_request",
+    clarity: "unclear",
+    required_fields: ["manager_review"],
+    missing_fields: ["manager_review"],
+    verification_route: "needs_human_approval",
+    rule_key: ruleKey,
+  };
+}
+
 function extraItemsFromProposals(
   bookingId: string,
   messages: Message[],
   proposals: InfoAnalysisProposal[]
 ): ExtraItem[] {
   const seen = new Set<string>();
+  const seenNovelTexts = new Set<string>();
   const items: ExtraItem[] = [];
+  let novelCount = 0;
 
   for (const proposal of proposals) {
+    const declared = proposal.rule_key ?? "";
+    // The agent's explicit "other" means "no library key fits" — respect that
+    // instead of regex-forcing a wrong bucket. Regex alignment only backstops
+    // proposals that arrived without any rule_key at all.
     const ruleKey =
-      proposal.rule_key ||
-      alignPromiseRuleKey(`${proposal.promise_text ?? ""}\n${proposal.source_quote ?? ""}`) ||
-      "";
-    if (!ruleKey || seen.has(ruleKey)) continue;
-    seen.add(ruleKey);
-    items.push(toExtraItem(ruleKey, bookingId, items.length, messages, proposal));
+      (declared && declared !== "other" && RULE_META[declared] ? declared : "") ||
+      (declared === "other"
+        ? ""
+        : alignPromiseRuleKey(`${proposal.promise_text ?? ""}\n${proposal.source_quote ?? ""}`) ?? "");
+
+    if (ruleKey && RULE_META[ruleKey]) {
+      if (seen.has(ruleKey)) continue;
+      seen.add(ruleKey);
+      items.push(toExtraItem(ruleKey, bookingId, items.length, messages, proposal));
+      continue;
+    }
+
+    const text = (proposal.promise_text ?? proposal.source_quote ?? "").trim();
+    if (!text) continue;
+    const normalized = text.toLowerCase().replace(/\s+/g, " ").slice(0, 80);
+    if (seenNovelTexts.has(normalized)) continue;
+    seenNovelTexts.add(normalized);
+    novelCount += 1;
+    items.push(toNovelExtraItem(`novel_${novelCount}`, messages, proposal, text));
   }
 
   return items;
@@ -282,6 +329,52 @@ function extraItemsFromMessages(bookingId: string, messages: Message[]): ExtraIt
   return items;
 }
 
+function novelItemsFromMessages(existing: ExtraItem[], messages: Message[]): ExtraItem[] {
+  const hasPet = existing.some((item) =>
+    `${item.text} ${item.source_quote ?? ""}`.toLowerCase().match(/\b(cat|cats|dog|dogs|pet|pets|animal|animals)\b/)
+  );
+  if (hasPet) return [];
+
+  for (const message of messages) {
+    for (const fragment of fragmentsFor(message)) {
+      if (/\b(?:bring|have|travel(?:ling)? with|come with)\b/i.test(fragment) &&
+          /\b(cat|cats|dog|dogs|pet|pets|animal|animals)\b/i.test(fragment)) {
+        return [
+          {
+            item_id: "NOVEL-PET",
+            text: fragment,
+            source_message_id: message.message_id,
+            source_quote: fragment,
+            domain: "other",
+            subtype: "pet_policy",
+            clarity: "unclear",
+            required_fields: ["hotel_pet_policy"],
+            missing_fields: ["hotel_pet_policy"],
+            verification_route: "needs_human_approval",
+            rule_key: "novel_pet",
+          },
+        ];
+      }
+    }
+  }
+  return [];
+}
+
+function mergeExtraItems(primary: ExtraItem[], secondary: ExtraItem[]): ExtraItem[] {
+  const byKey = new Set(primary.map((item) => item.rule_key).filter(Boolean));
+  const byText = new Set(primary.map((item) => item.text.toLowerCase().replace(/\s+/g, " ").slice(0, 80)));
+  const merged = [...primary];
+  for (const item of secondary) {
+    const key = item.rule_key;
+    const text = item.text.toLowerCase().replace(/\s+/g, " ").slice(0, 80);
+    if ((key && byKey.has(key)) || byText.has(text)) continue;
+    byKey.add(key);
+    byText.add(text);
+    merged.push(item);
+  }
+  return merged;
+}
+
 export function analyzeBookingInfo(
   bookingId: string,
   reservation: Reservation | null,
@@ -293,9 +386,9 @@ export function analyzeBookingInfo(
   const basicComplete = missing.length === 0;
   const nonComplaintMessages = messages.filter((m) => m.message_type !== "complaint");
   const proposedItems = extraItemsFromProposals(bookingId, nonComplaintMessages, proposals);
-  const extractedItems = proposedItems.length
-    ? proposedItems
-    : extraItemsFromMessages(bookingId, nonComplaintMessages);
+  const messageItems = extraItemsFromMessages(bookingId, nonComplaintMessages);
+  const mergedItems = mergeExtraItems(proposedItems, messageItems);
+  const extractedItems = mergeExtraItems(mergedItems, novelItemsFromMessages(mergedItems, nonComplaintMessages));
 
   return {
     booking_id: bookingId,

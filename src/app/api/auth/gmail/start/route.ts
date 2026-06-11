@@ -1,7 +1,11 @@
 import { randomBytes } from "crypto";
 import { NextResponse } from "next/server";
 
-const GMAIL_READONLY_SCOPE = "https://www.googleapis.com/auth/gmail.readonly";
+// readonly: intake search/import · send: agent-drafted, manager-approved replies
+const GMAIL_SCOPES = [
+  "https://www.googleapis.com/auth/gmail.readonly",
+  "https://www.googleapis.com/auth/gmail.send",
+].join(" ");
 
 export const dynamic = "force-dynamic";
 
@@ -26,7 +30,7 @@ export async function GET() {
     client_id: clientId,
     redirect_uri: redirectUri,
     response_type: "code",
-    scope: GMAIL_READONLY_SCOPE,
+    scope: GMAIL_SCOPES,
     access_type: "offline",
     prompt: "consent",
     state,

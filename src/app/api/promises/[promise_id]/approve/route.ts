@@ -2,13 +2,17 @@ import { NextResponse } from "next/server";
 import { getOpsTasks, loadApprovalRecords, loadPromiseLedger } from "@/lib/data";
 import { getDb } from "@/lib/store/db";
 import { recordFeedback } from "@/lib/learning/feedbackStore";
+import { recordCaseFromFeedback } from "@/lib/learning/caseMemory";
+import { mirrorApproval } from "@/lib/store/pgMirror";
 
 export const dynamic = "force-dynamic";
 
 function addApproval(promise_id: string): void {
+  const at = new Date().toISOString();
   getDb()
     .prepare("INSERT OR IGNORE INTO runtime_approvals (promise_id, at) VALUES (?, ?)")
-    .run(promise_id, new Date().toISOString());
+    .run(promise_id, at);
+  mirrorApproval(promise_id, at);
 }
 
 function listRuntimeApprovals(): string[] {
@@ -49,6 +53,15 @@ export async function POST(
     prior_status: row?.status,
     decision: "approved",
   });
+  // And turn it into a retrievable lesson for future audits (semantic, not just per-id).
+  if (row?.promise_text) {
+    recordCaseFromFeedback({
+      guest_request: row.promise_text,
+      decision: "approved",
+      promise_text: row.promise_text,
+      prior_status: row.status,
+    });
+  }
 
   // Display (do not recreate or complete) the existing source task.
   // TASK-103 for P-002 is intentionally left open to drive the complaint demo.

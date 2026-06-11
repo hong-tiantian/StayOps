@@ -110,6 +110,13 @@ export interface PromiseDecision {
   tool_calls: ToolCall[];
   /** True when managers have repeatedly approved this promise — learned fast-track. */
   learned_fast_track?: boolean;
+  /** Case-memory entries this decision drew on — the "learned from N past cases" provenance. */
+  learning_provenance?: Array<{
+    scenario: string;
+    lesson: string;
+    source: string;
+    similarity: number;
+  }>;
   /** Status the Gemini/ADK agent proposed BEFORE policy adjudication (absent on rules-only path). */
   agent_proposed_status?: string;
   /** True when the deterministic safety gate overrode the agent's proposed status. */

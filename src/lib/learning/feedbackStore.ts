@@ -1,4 +1,5 @@
 import { getDb } from "../store/db";
+import { mirrorFeedback } from "../store/pgMirror";
 
 /**
  * Self-improvement loop — manager feedback capture + learned preferences,
@@ -18,11 +19,19 @@ export interface FeedbackEvent {
 }
 
 export function recordFeedback(e: Omit<FeedbackEvent, "at">): void {
+  const at = new Date().toISOString();
   getDb()
     .prepare(
       "INSERT INTO feedback (promise_id, promise_text, prior_status, decision, at) VALUES (?, ?, ?, ?, ?)"
     )
-    .run(e.promise_id, e.promise_text ?? null, e.prior_status ?? null, e.decision, new Date().toISOString());
+    .run(e.promise_id, e.promise_text ?? null, e.prior_status ?? null, e.decision, at);
+  mirrorFeedback({
+    promise_id: e.promise_id,
+    promise_text: e.promise_text ?? null,
+    prior_status: e.prior_status ?? null,
+    decision: e.decision,
+    at,
+  });
 }
 
 export interface LearnedPreference {

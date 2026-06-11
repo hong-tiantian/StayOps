@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Lang } from "@/lib/i18n";
 import { cx } from "@/components/ui/visuals";
 import StatusBadge from "@/components/StatusBadge";
+import ReplyDraftCard from "@/components/ReplyDraftCard";
 
 /* Email intake — Gmail readonly search/import plus manual paste, both feeding
    POST /api/audit/from-intake (handoff contract §5). Unmapped emails are
@@ -30,6 +31,24 @@ type GmailSearch =
   | { ok: true; source: "gmail"; data: ThreadSummary[] }
   | { ok: false; source: "gmail"; status: string; reason: string; required_env: string[] };
 
+interface IntakeDecision {
+  promise_id: string;
+  promise_text: string;
+  status: string;
+  owner_department: string;
+  approval_required: boolean;
+  risk_reason?: string;
+  recommended_action?: string;
+  evidence?: string[];
+}
+
+interface IntakeGrounding {
+  hotel_name: string;
+  retrieval_method: string;
+  sop_hits: Array<{ doc_title: string; score: number; chunk_text: string }>;
+  case_hits: Array<{ scenario: string; lesson: string; score: number; source: string }>;
+}
+
 interface IntakeAudit {
   ok: true;
   mapped_booking_id: string;
@@ -37,13 +56,8 @@ interface IntakeAudit {
   intake_messages: IntakeMessage[];
   audit: {
     reasoning_source: string;
-    decisions: Array<{
-      promise_id: string;
-      promise_text: string;
-      status: string;
-      owner_department: string;
-      approval_required: boolean;
-    }>;
+    decisions: IntakeDecision[];
+    grounding?: IntakeGrounding;
     task_plan: unknown[];
   };
 }
@@ -104,6 +118,9 @@ export default function GmailIntakePanel({ lang }: { lang: Lang }) {
     []
   );
 
+  const guestText = result?.intake_messages.map((m) => m.body_text).join("\n\n") ?? "";
+  const firstMessage = result?.intake_messages[0];
+
   const importThread = useCallback(
     async (threadId: string) => {
       setImportingId(threadId);
@@ -153,7 +170,7 @@ export default function GmailIntakePanel({ lang }: { lang: Lang }) {
               >
                 <span
                   className="h-[5px] w-[5px] rounded-full"
-                  style={{ background: gmailDegraded ? "rgb(229 190 120)" : "rgb(126 200 169)" }}
+                  style={{ background: gmailDegraded ? "rgb(244 196 110)" : "rgb(110 222 178)" }}
                 />
                 {gmailDegraded ? (zh ? "未连接" : "Not connected") : zh ? "只读已连接" : "Readonly connected"}
               </span>
@@ -242,60 +259,122 @@ export default function GmailIntakePanel({ lang }: { lang: Lang }) {
           </div>
         </div>
 
-        {/* -------- Right: audit result -------- */}
-        <div className="glass p-5">
-          <h3 className="t-label mb-3">{zh ? "接入审计结果" : "Intake audit result"}</h3>
-          {!result && !auditing && (
-            <div className="grid h-40 place-items-center text-center text-xs leading-relaxed text-white/38">
-              {zh ? "导入线程或粘贴邮件后，承诺审计结果显示在这里" : "Import a thread or paste an email — the promise audit lands here"}
-            </div>
-          )}
-          {auditing && (
-            <div className="grid h-40 place-items-center">
-              <div className="flex items-center gap-2 text-xs text-white/55">
-                <span className="h-3.5 w-3.5 animate-spin rounded-full border border-white/25 border-t-white/85" />
-                {zh ? "Gemini 提案 + 安全门终审中…" : "Gemini proposing + safety gate adjudicating…"}
+        {/* -------- Right: audit result + grounding + reply loop -------- */}
+        <div className="space-y-4">
+          <div className="glass p-5">
+            <h3 className="t-label mb-3">{zh ? "接入审计结果" : "Intake audit result"}</h3>
+            {!result && !auditing && (
+              <div className="grid h-40 place-items-center text-center text-xs leading-relaxed text-white/38">
+                {zh ? "导入线程或粘贴邮件后，承诺审计结果显示在这里" : "Import a thread or paste an email — the promise audit lands here"}
               </div>
-            </div>
-          )}
-          {error && <p className="mb-3 text-[12px] text-rose-300">{error}</p>}
-          {result && !auditing && (
-            <div className="space-y-3">
-              <div className="glass-inset rounded-xl p-3">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="rounded-md border border-white/10 bg-white/[0.04] px-2 py-0.5 font-mono text-[10px] text-white/65">
-                    {result.mapped_booking_id}
-                  </span>
-                  <span className="rounded-full border border-white/12 bg-black/25 px-2 py-0.5 text-[10px] font-medium text-white/70">
-                    {result.intake_messages[0]?.source === "gmail" ? "source: gmail" : "source: manual"}
-                  </span>
-                  <span className="rounded-full border border-white/12 bg-black/25 px-2 py-0.5 text-[10px] font-medium text-white/70">
-                    {result.audit.reasoning_source}
-                  </span>
+            )}
+            {auditing && (
+              <div className="grid h-40 place-items-center">
+                <div className="flex items-center gap-2 text-xs text-white/55">
+                  <span className="h-3.5 w-3.5 animate-spin rounded-full border border-white/25 border-t-white/85" />
+                  {zh ? "检索 SOP/案例 + 提案 + 安全门终审中…" : "Retrieving SOP/cases + proposing + safety gate adjudicating…"}
                 </div>
-                <p className="t-caption mt-2">{result.mapping_reason}</p>
               </div>
+            )}
+            {error && <p className="mb-3 text-[12px] text-rose-300">{error}</p>}
+            {result && !auditing && (
+              <div className="space-y-3">
+                <div className="glass-inset rounded-xl p-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="rounded-md border border-white/10 bg-white/[0.04] px-2 py-0.5 font-mono text-[10px] text-white/65">
+                      {result.mapped_booking_id}
+                    </span>
+                    <span className="rounded-full border border-white/12 bg-black/25 px-2 py-0.5 text-[10px] font-medium text-white/70">
+                      {result.intake_messages[0]?.source === "gmail" ? "source: gmail" : "source: manual"}
+                    </span>
+                    <span className="rounded-full border border-white/12 bg-black/25 px-2 py-0.5 text-[10px] font-medium text-white/70">
+                      {result.audit.reasoning_source}
+                    </span>
+                    {result.audit.grounding && (
+                      <span className="rounded-full border border-cyan-300/25 bg-cyan-400/10 px-2 py-0.5 text-[10px] font-medium text-cyan-100">
+                        {result.audit.grounding.hotel_name} · {result.audit.grounding.retrieval_method} RAG
+                      </span>
+                    )}
+                  </div>
+                  <p className="t-caption mt-2">{result.mapping_reason}</p>
+                </div>
 
-              <div className="space-y-1.5">
-                {result.audit.decisions.map((d) => (
-                  <div key={d.promise_id} className="glass-inset flex items-center gap-3 rounded-xl p-3">
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate text-[12.5px] text-white/90">{d.promise_text}</div>
-                      <div className="t-caption">
-                        {d.owner_department}
-                        {d.approval_required && (zh ? " · 需经理审批" : " · needs manager approval")}
+                <div className="space-y-1.5">
+                  {result.audit.decisions.map((d) => (
+                    <div key={d.promise_id} className="glass-inset rounded-xl p-3">
+                      <div className="flex items-center gap-3">
+                        <div className="min-w-0 flex-1">
+                          <div className="truncate text-[12.5px] text-white/90">{d.promise_text}</div>
+                          <div className="t-caption">
+                            {d.owner_department}
+                            {d.approval_required && (zh ? " · 需经理审批" : " · needs manager approval")}
+                            {d.promise_id.startsWith("NOVEL") && (zh ? " · 规则库外" : " · outside rule library")}
+                          </div>
+                        </div>
+                        <StatusBadge status={d.status} size="xs" lang={lang} />
                       </div>
+                      {d.recommended_action && (
+                        <p className="mt-1.5 border-l-2 border-white/15 pl-2 text-[11.5px] leading-relaxed text-white/60">
+                          {d.recommended_action}
+                        </p>
+                      )}
                     </div>
-                    <StatusBadge status={d.status} size="xs" lang={lang} />
+                  ))}
+                  {result.audit.decisions.length === 0 && (
+                    <div className="grid h-16 place-items-center text-xs text-white/38">
+                      {zh ? "未提取到承诺条目" : "No promise items extracted"}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {result && !auditing && result.audit.grounding && (
+            <div className="glass p-5">
+              <h3 className="t-label mb-2.5">
+                {zh ? "决策依据 — 检索到的 SOP 与历史案例" : "Decision grounding — retrieved SOP & past cases"}
+              </h3>
+              <div className="space-y-1.5">
+                {result.audit.grounding.sop_hits.slice(0, 3).map((h, i) => (
+                  <div key={`sop-${i}`} className="glass-inset rounded-xl p-2.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[11px] font-semibold text-white/80">SOP · {h.doc_title}</span>
+                      <span className="tnum font-mono text-[10px] text-white/45">{(h.score * 100).toFixed(0)}%</span>
+                    </div>
+                    <p className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-white/55">{h.chunk_text}</p>
                   </div>
                 ))}
-                {result.audit.decisions.length === 0 && (
-                  <div className="grid h-16 place-items-center text-xs text-white/38">
-                    {zh ? "未提取到承诺条目" : "No promise items extracted"}
+                {result.audit.grounding.case_hits.slice(0, 2).map((h, i) => (
+                  <div key={`case-${i}`} className="glass-inset rounded-xl p-2.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[11px] font-semibold text-white/80">
+                        {zh ? "案例" : "Case"} · {h.source}
+                      </span>
+                      <span className="tnum font-mono text-[10px] text-white/45">{(h.score * 100).toFixed(0)}%</span>
+                    </div>
+                    <p className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-white/55">{h.lesson}</p>
                   </div>
-                )}
+                ))}
               </div>
             </div>
+          )}
+
+          {result && !auditing && result.audit.decisions.length > 0 && (
+            <ReplyDraftCard
+              decisions={result.audit.decisions.map((d) => ({
+                promise_id: d.promise_id,
+                promise_text: d.promise_text,
+                status: d.status,
+                owner_department: d.owner_department,
+                approval_required: d.approval_required,
+              }))}
+              guestText={guestText}
+              subject={firstMessage?.subject}
+              senderHint={firstMessage?.sender}
+              threadId={firstMessage && "thread_id" in firstMessage ? (firstMessage as { thread_id?: string }).thread_id : undefined}
+              lang={lang}
+            />
           )}
         </div>
       </div>
