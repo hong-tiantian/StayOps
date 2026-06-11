@@ -62,6 +62,7 @@ const STAGES = {
 
 export default function EvalMetricsCard({ bookingId, lang }: { bookingId: string; lang: Lang }) {
   const zh = lang === "zh";
+  const stageLang = zh ? "zh" : "en";
   const [result, setResult] = useState<EvalResult | null>(evalCache.get(bookingId) ?? null);
   const [loading, setLoading] = useState(false);
   const [stage, setStage] = useState(0);
@@ -117,13 +118,13 @@ export default function EvalMetricsCard({ bookingId, lang }: { bookingId: string
           {loading ? (
             <>
               <span className="h-3 w-3 animate-spin rounded-full border border-white/30 border-t-white/90" />
-              {STAGES[lang][stage]}
+              {STAGES[stageLang][stage]}
             </>
           ) : zh ? "运行评测" : "Run eval"}
         </button>
         {loading && (
           <div className="flex items-center gap-1.5">
-            {STAGES[lang].map((_, i) => (
+            {STAGES[stageLang].map((_, i) => (
               <span
                 key={i}
                 className={cx("h-1 rounded-full transition-all", i <= stage ? "w-6 bg-white/70" : "w-3 bg-white/15")}

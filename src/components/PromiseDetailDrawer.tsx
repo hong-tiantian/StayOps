@@ -143,7 +143,7 @@ export default function PromiseDetailDrawer({
   lang: Lang;
   role?: "manager" | "judge";
 }) {
-  const t = DETAIL[lang];
+  const t = DETAIL[lang === "zh" ? "zh" : "en"];
   const common = ui[lang];
   const isJudge = role === "judge";
 

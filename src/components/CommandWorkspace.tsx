@@ -7,6 +7,7 @@ import StatusBadge from "@/components/StatusBadge";
 import WidgetGrid, { GLayouts, WidgetItem } from "@/components/widgets/WidgetGrid";
 import WidgetCard from "@/components/widgets/WidgetCard";
 import { DeptIcon } from "@/components/ui/icons";
+import GmailIntakeMiniPanel from "@/components/GmailIntakeMiniPanel";
 import { DecoratedTask } from "@/components/TaskBoard";
 import {
   Bar,
@@ -64,7 +65,7 @@ const ACTION_LABELS: Record<string, { en: string; zh: string }> = {
 
 function actionLabel(code: string | undefined, lang: Lang) {
   const key = code ?? "monitor";
-  return ACTION_LABELS[key]?.[lang] ?? key.replace(/_/g, " ");
+  return ACTION_LABELS[key]?.[lang === "zh" ? "zh" : "en"] ?? key.replace(/_/g, " ");
 }
 
 function mn(o: { i: string; x: number; y: number; w: number; h: number }) {
@@ -692,6 +693,8 @@ export default function CommandWorkspace({
           </div>
         </div>
       )}
+
+      {!drillPanel && <GmailIntakeMiniPanel lang={lang} />}
 
       {/* ---------------- Contextual freshness notice (replaces the old gate board) ---------------- */}
       {staleSources.length > 0 && (
