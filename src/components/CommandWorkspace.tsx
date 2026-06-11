@@ -889,7 +889,7 @@ export default function CommandWorkspace({
           >
             <div className="flex items-center justify-between">
               <span className="t-label">{zh ? "高风险" : "At Risk"}</span>
-              <span className="h-[6px] w-[6px] rounded-full" style={{ background: risk > 0 ? "rgb(229 190 120)" : "rgba(255,255,255,0.25)", boxShadow: risk > 0 ? "0 0 10px rgb(229 190 120)" : "none" }} />
+              <span className="h-[6px] w-[6px] rounded-full" style={{ background: risk > 0 ? "rgb(244 196 110)" : "rgba(255,255,255,0.25)", boxShadow: risk > 0 ? "0 0 10px rgb(244 196 110)" : "none" }} />
             </div>
             <div>
               <CountUp value={risk} className="t-hero block" />
@@ -904,7 +904,7 @@ export default function CommandWorkspace({
           >
             <div className="flex items-center justify-between">
               <span className="t-label">{zh ? "待审批" : "Pending Approval"}</span>
-              <span className="h-[6px] w-[6px] rounded-full" style={{ background: pendingApproval > 0 ? "rgb(229 190 120)" : "rgba(255,255,255,0.25)", boxShadow: pendingApproval > 0 ? "0 0 10px rgb(229 190 120)" : "none" }} />
+              <span className="h-[6px] w-[6px] rounded-full" style={{ background: pendingApproval > 0 ? "rgb(244 196 110)" : "rgba(255,255,255,0.25)", boxShadow: pendingApproval > 0 ? "0 0 10px rgb(244 196 110)" : "none" }} />
             </div>
             <div>
               <CountUp value={pendingApproval} className="t-hero block" />

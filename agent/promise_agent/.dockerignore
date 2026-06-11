@@ -1,0 +1,8 @@
+# Keep host (mac arm64) node_modules out of the linux image — deps are
+# installed inside the container from package-lock.json.
+node_modules
+dist
+.env
+.env.local
+*.tsbuildinfo
+.DS_Store

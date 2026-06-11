@@ -9,3 +9,8 @@ next-env.d.ts
 /.data
 npm-debug.log*
 /.vs/
+
+# Case-memory harvest intermediates — regenerable by scripts/harvest-cases.mjs.
+# Only the distilled data/corpus/learned_cases.json is committed (the app seeds from it).
+/data/corpus/raw_harvest.json
+/data/corpus/reddit_raw.json

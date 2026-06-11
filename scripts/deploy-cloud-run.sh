@@ -20,6 +20,29 @@ PROJECT="${GCP_PROJECT:-stayops-498807}"
 REGION="${GCP_REGION:-us-central1}"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
+# ---- Optional: Cloud SQL (Postgres + pgvector) persistent learning ----
+# Without these, learning lives in container-local SQLite (lost on cold start).
+# One-time instance setup (run once, ~10 min):
+#   gcloud sql instances create stayops-pg --project $PROJECT --region $REGION \
+#     --database-version=POSTGRES_16 --tier=db-f1-micro
+#   gcloud sql databases create stayops --instance stayops-pg --project $PROJECT
+#   gcloud sql users set-password postgres --instance stayops-pg --project $PROJECT --password '<PASS>'
+# Then export before running this script:
+#   export CLOUD_SQL_INSTANCE="$PROJECT:$REGION:stayops-pg"
+#   export DATABASE_URL='postgresql://postgres:<PASS>@/stayops?host=/cloudsql/'"$CLOUD_SQL_INSTANCE"
+# (pgvector: the app runs CREATE EXTENSION IF NOT EXISTS vector automatically.)
+CLOUD_SQL_INSTANCE="${CLOUD_SQL_INSTANCE:-}"
+DATABASE_URL="${DATABASE_URL:-}"
+SQL_DEPLOY_FLAGS=()
+SQL_ENV=""
+if [ -n "$CLOUD_SQL_INSTANCE" ] && [ -n "$DATABASE_URL" ]; then
+  SQL_DEPLOY_FLAGS=(--add-cloudsql-instances "$CLOUD_SQL_INSTANCE")
+  SQL_ENV=",DATABASE_URL=$DATABASE_URL"
+  echo "==> Cloud SQL persistence enabled via $CLOUD_SQL_INSTANCE"
+else
+  echo "==> Cloud SQL not configured (CLOUD_SQL_INSTANCE/DATABASE_URL unset) — learning persists per-container only"
+fi
+
 # Pull Phoenix config from .env.local (never committed).
 PHOENIX_COLLECTOR_ENDPOINT="$(grep -E '^PHOENIX_COLLECTOR_ENDPOINT=' "$ROOT/.env.local" | cut -d= -f2-)"
 PHOENIX_API_KEY="$(grep -E '^PHOENIX_API_KEY=' "$ROOT/.env.local" | cut -d= -f2-)"
@@ -53,7 +76,8 @@ gcloud run deploy stayops \
   --project "$PROJECT" --region "$REGION" \
   --allow-unauthenticated \
   --max-instances 1 --memory 1Gi --timeout 300 \
-  --set-env-vars "GOOGLE_GENAI_USE_VERTEXAI=true,GOOGLE_CLOUD_PROJECT=$PROJECT,GOOGLE_CLOUD_LOCATION=global,GEMINI_MODEL=gemini-3.5-flash,EVAL_API_ENABLED=1,PHOENIX_COLLECTOR_ENDPOINT=$PHOENIX_COLLECTOR_ENDPOINT,PHOENIX_API_KEY=$PHOENIX_API_KEY,GMAIL_CLIENT_ID=$GMAIL_CLIENT_ID,GMAIL_CLIENT_SECRET=$GMAIL_CLIENT_SECRET,GMAIL_REDIRECT_URI=$GMAIL_REDIRECT_URI,GMAIL_REFRESH_TOKEN=$GMAIL_REFRESH_TOKEN,GMAIL_OAUTH_SHOW_TOKEN=false" \
+  ${SQL_DEPLOY_FLAGS[@]+"${SQL_DEPLOY_FLAGS[@]}"} \
+  --set-env-vars "GOOGLE_GENAI_USE_VERTEXAI=true,GOOGLE_CLOUD_PROJECT=$PROJECT,GOOGLE_CLOUD_LOCATION=global,GEMINI_MODEL=gemini-3.5-flash,EVAL_API_ENABLED=1,PHOENIX_COLLECTOR_ENDPOINT=$PHOENIX_COLLECTOR_ENDPOINT,PHOENIX_API_KEY=$PHOENIX_API_KEY,GMAIL_CLIENT_ID=$GMAIL_CLIENT_ID,GMAIL_CLIENT_SECRET=$GMAIL_CLIENT_SECRET,GMAIL_REDIRECT_URI=$GMAIL_REDIRECT_URI,GMAIL_REFRESH_TOKEN=$GMAIL_REFRESH_TOKEN,GMAIL_OAUTH_SHOW_TOKEN=false$SQL_ENV" \
   --quiet
 
 APP_URL="$(gcloud run services describe stayops --project "$PROJECT" --region "$REGION" --format 'value(status.url)')"

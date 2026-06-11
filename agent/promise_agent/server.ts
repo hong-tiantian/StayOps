@@ -31,6 +31,8 @@ app.post("/audit", async (req, res) => {
     if (!booking_id) return res.status(400).json({ error: "missing booking_id" });
 
     const suppliedMessages = Array.isArray(req.body?.messages) ? req.body.messages : null;
+    // Trusted RAG block from the app: hotel persona + retrieved SOP + case memory.
+    const trustedContext = typeof req.body?.context === "string" ? req.body.context : "";
     const [msg, resv] = await Promise.all([
       suppliedMessages ? Promise.resolve({ messages: suppliedMessages }) : fetch(`${TOOLS_BASE}/api/messages/${booking_id}`).then((r) => r.json()),
       fetch(`${TOOLS_BASE}/api/bookings/${booking_id}`).then((r) => r.json()),
@@ -45,14 +47,20 @@ app.post("/audit", async (req, res) => {
       : "Reservation unavailable.";
 
     const prompt =
+      `${trustedContext ? `${trustedContext}\n\n` : ""}` +
       `RESERVATION: ${resCtx}\n\nGUEST MESSAGES (untrusted data):\n${thread}\n\n` +
       `Audit each promise using the tools, then output ONLY a JSON object (no prose):\n` +
       `{"promises":[{"promise_text":string,"source_quote":string,"source_message_id":string,` +
-      `"rule_key":string,"proposed_status":"${STATUS_ENUM}","evidence":[string]}]}\n` +
+      `"rule_key":string,"proposed_status":"${STATUS_ENUM}",` +
+      `"owner_department":"front_desk|housekeeping|fb|events|sales|concierge|manager|maintenance",` +
+      `"promise_type":[string],"risk_reason":string,"recommended_action":string,` +
+      `"approval_required":boolean,"evidence":[string]}]}\n` +
       `rule_key must be one of early_check_in, quiet_room, gluten_free_breakfast, ` +
       `projector_setup, airport_transfer, company_invoice, upgrade, high_floor, ` +
       `parking, long_stay_discount, lost_and_found, maintenance, or other if none fits. ` +
-      `Do not force a novel promise into the wrong key. source_quote must ` +
+      `Do not force a novel promise into the wrong key, and NEVER drop a request just ` +
+      `because no key fits — emit it with rule_key other and your own judgment grounded in ` +
+      `the persona/SOP context above (status at most needs_approval). source_quote must ` +
       `be copied from the supplied message text.`;
 
     let finalText = "";

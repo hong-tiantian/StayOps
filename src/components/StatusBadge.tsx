@@ -4,17 +4,17 @@ import { Lang, ui } from "@/lib/i18n";
 /* Status reads as a single 6px point of light on neutral glass —
    no colored pill backgrounds, no rainbow. */
 const DOT: Record<string, string> = {
-  verifiable: "rgb(126 200 169)",
-  completed: "rgb(126 200 169)",
-  resolved: "rgb(126 200 169)",
-  at_risk: "rgb(229 190 120)",
-  needs_approval: "rgb(229 190 120)",
-  approved: "rgb(178 160 218)",
-  task_created: "rgb(138 192 214)",
-  missing_info: "rgb(138 192 214)",
-  conflict: "rgb(229 138 148)",
-  failed: "rgb(229 138 148)",
-  cannot_confirm: "rgb(229 138 148)",
+  verifiable: "rgb(110 222 178)",
+  completed: "rgb(110 222 178)",
+  resolved: "rgb(110 222 178)",
+  at_risk: "rgb(244 196 110)",
+  needs_approval: "rgb(244 196 110)",
+  approved: "rgb(188 162 240)",
+  task_created: "rgb(126 200 236)",
+  missing_info: "rgb(126 200 236)",
+  conflict: "rgb(246 142 158)",
+  failed: "rgb(246 142 158)",
+  cannot_confirm: "rgb(246 142 158)",
 };
 
 const LABELS: Record<string, string> = {

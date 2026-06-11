@@ -41,8 +41,8 @@ function MetricTile({ label, value, ok }: { label: string; value: string; ok: bo
         <span
           className="h-[6px] w-[6px] shrink-0 rounded-full"
           style={{
-            background: ok ? "rgb(126 200 169)" : "rgb(229 138 148)",
-            boxShadow: `0 0 8px ${ok ? "rgb(126 200 169)" : "rgb(229 138 148)"}`,
+            background: ok ? "rgb(110 222 178)" : "rgb(246 142 158)",
+            boxShadow: `0 0 8px ${ok ? "rgb(110 222 178)" : "rgb(246 142 158)"}`,
           }}
         />
         <span className="tnum text-[15px] font-semibold text-white">{value}</span>
@@ -115,8 +115,8 @@ export default function EvalMetricsCard({ bookingId, lang }: { bookingId: string
           <span
             className="h-[6px] w-[6px] rounded-full"
             style={{
-              background: result.overall_passed ? "rgb(126 200 169)" : "rgb(229 138 148)",
-              boxShadow: `0 0 8px ${result.overall_passed ? "rgb(126 200 169)" : "rgb(229 138 148)"}`,
+              background: result.overall_passed ? "rgb(110 222 178)" : "rgb(246 142 158)",
+              boxShadow: `0 0 8px ${result.overall_passed ? "rgb(110 222 178)" : "rgb(246 142 158)"}`,
             }}
           />
           {result.overall_passed ? (zh ? "全部通过" : "All passed") : zh ? "存在失败项" : "Has failures"}

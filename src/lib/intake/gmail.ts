@@ -89,7 +89,7 @@ function gmailUnavailable(): GmailAdapterResult<never> {
   };
 }
 
-async function getGmailAccessToken(): Promise<string> {
+export async function getGmailAccessToken(): Promise<string> {
   const response = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
