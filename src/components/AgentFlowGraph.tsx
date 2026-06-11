@@ -207,7 +207,7 @@ export default function AgentFlowGraph({
             {STAGES.map((s, i) => (
               <Fragment key={s.id}>
                 <div className="w-[148px] shrink-0 text-center">
-                  <div className="t-label !normal-case !tracking-normal !text-white/80">{s.title[lang]}</div>
+                  <div className="t-label !normal-case !tracking-normal !text-white/80">{s.title[lang === "zh" ? "zh" : "en"]}</div>
                   <div className="tnum font-mono text-[9px] text-white/30">{String(i + 1).padStart(2, "0")}</div>
                 </div>
                 {i < STAGES.length - 1 && <div className="w-7 shrink-0" />}

@@ -20,6 +20,10 @@ const TOOL_LABELS: Record<string, string> = {
   trace_broken_promise: "Traced the broken promise",
 };
 
+function textLang(lang: Lang): "en" | "zh" {
+  return lang === "zh" ? "zh" : "en";
+}
+
 export function toolLabel(name: string): string {
   return TOOL_LABELS[name] ?? name.replace(/_/g, " ");
 }
@@ -101,7 +105,7 @@ const DEPT_LABELS: Record<string, { en: string; zh: string }> = {
 };
 
 export function deptLabel(dept: string, lang: Lang = "en"): string {
-  return DEPT_LABELS[dept]?.[lang] ?? dept.replace(/_/g, " ");
+  return DEPT_LABELS[dept]?.[textLang(lang)] ?? dept.replace(/_/g, " ");
 }
 
 /* ------------------------------------------------------------------ */
@@ -119,7 +123,7 @@ const SOP_LABELS: Record<string, { en: string; zh: string }> = {
 };
 
 export function sopLabel(code: string, lang: Lang = "en"): string {
-  return SOP_LABELS[code]?.[lang] ?? code;
+  return SOP_LABELS[code]?.[textLang(lang)] ?? code;
 }
 
 const FIELD_LABELS: Record<string, { en: string; zh: string }> = {
@@ -146,7 +150,7 @@ const FIELD_LABELS: Record<string, { en: string; zh: string }> = {
 };
 
 export function fieldLabel(code: string, lang: Lang = "en"): string {
-  return FIELD_LABELS[code]?.[lang] ?? code.replace(/_/g, " ");
+  return FIELD_LABELS[code]?.[textLang(lang)] ?? code.replace(/_/g, " ");
 }
 
 /** Replace SOP codes and snake_case field tokens inside backend prose so the
@@ -155,7 +159,7 @@ export function humanizeOpsText(text: string, lang: Lang = "en"): string {
   if (!text) return text;
   let out = text.replace(/SOP-[A-Z]{2,4}-\d{3}/g, (code) => sopLabel(code, lang));
   for (const [code, labels] of Object.entries(FIELD_LABELS)) {
-    out = out.replace(new RegExp(`\\b${code}\\b`, "g"), labels[lang]);
+    out = out.replace(new RegExp(`\\b${code}\\b`, "g"), labels[textLang(lang)]);
   }
   return out;
 }

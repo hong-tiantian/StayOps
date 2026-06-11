@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { Search } from "lucide-react";
 import { Lang, ui } from "@/lib/i18n";
 
@@ -28,16 +29,17 @@ const LOCALES = [
   { value: "de", label: "Deutsch" },
   { value: "ja", label: "日本語" },
   { value: "ko", label: "한국어" },
+  { value: "zh", label: "中文" },
 ] as const;
 
 type LocaleValue = (typeof LOCALES)[number]["value"];
 
 function langToLocale(lang: Lang): LocaleValue {
-  return lang === "zh" ? "en" : lang;
+  return lang;
 }
 
 function localeToLang(locale: string): Lang {
-  return locale === "zh" ? "zh" : "en";
+  return locale as Lang;
 }
 
 export default function AppShell({
@@ -80,7 +82,7 @@ export default function AppShell({
   children: React.ReactNode;
 }) {
   const t = ui[lang];
-  const locale = langToLocale(lang);
+  const [selectedLocale, setSelectedLocale] = useState<LocaleValue>(langToLocale(lang));
 
   return (
     <div className="h-screen overflow-hidden p-3 sm:p-5">
@@ -196,8 +198,12 @@ export default function AppShell({
                 </button>
               </div>
               <select
-                value={locale}
-                onChange={(e) => onLang(localeToLang(e.target.value))}
+                value={selectedLocale}
+                onChange={(e) => {
+                  const next = e.target.value as LocaleValue;
+                  setSelectedLocale(next);
+                  onLang(localeToLang(next));
+                }}
                 title="Locale"
                 aria-label="Locale"
                 className="select-glass"

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Bot, Brain, CheckCircle2, Network, ShieldCheck, Timer, Wrench } from "lucide-react";
+import { Bot, Brain, CheckCircle2, Lightbulb, Network, ReceiptText, ShieldCheck, Timer, Wrench } from "lucide-react";
 import { Lang } from "@/lib/i18n";
 
 interface LearnedPreference {
@@ -24,11 +24,30 @@ interface AuditTraceSummary {
   phoenix_url?: string;
 }
 
+interface ImprovementSuggestion {
+  title: string;
+  detail: string;
+  basis: string;
+}
+
+interface CostBasis {
+  measured: {
+    gemini_turns: number;
+    tool_calls: number;
+    trace_duration_ms: number;
+    traced_spans: number;
+  } | null;
+  unavailable: string[];
+  note: string;
+}
+
 interface Insights {
   ok: boolean;
   self_project?: { name: string; id: string } | null;
   all_projects?: string[];
   audit_trace?: AuditTraceSummary | null;
+  improvement_suggestions?: ImprovementSuggestion[];
+  cost_basis?: CostBasis;
   learning?: {
     total_decisions: number;
     learned_count: number;
@@ -58,6 +77,7 @@ export default function SelfReview({ lang, refreshKey, bare = false }: { lang: L
 
   const learned = data?.learning?.learned ?? [];
   const total = data?.learning?.total_decisions ?? 0;
+  const suggestions = data?.improvement_suggestions ?? [];
 
   const Wrapper = bare
     ? ({ children }: { children: React.ReactNode }) => <div className="h-full">{children}</div>
@@ -122,6 +142,44 @@ export default function SelfReview({ lang, refreshKey, bare = false }: { lang: L
           <div className="mt-1 font-mono text-[10px] text-white/35">
             trace {data.audit_trace.trace_id.slice(0, 16)}… · {data.audit_trace.started_at.slice(0, 19)}
           </div>
+        </div>
+      )}
+
+      {data?.cost_basis && (
+        <div className="mb-3 flex items-start gap-1.5 rounded-2xl border border-violet-300/20 bg-violet-400/8 p-3 text-[11px] text-white/58">
+          <ReceiptText className="mt-0.5 h-3.5 w-3.5 shrink-0 text-violet-200" strokeWidth={1.75} aria-hidden />
+          <div>
+            <div className="font-semibold text-violet-100">{zh ? "成本依据" : "Cost basis"}</div>
+            <div className="mt-0.5">
+              {data.cost_basis.measured
+                ? zh
+                  ? `已记录 ${data.cost_basis.measured.gemini_turns} 次 Gemini 调用、${data.cost_basis.measured.tool_calls} 次工具调用、${(data.cost_basis.measured.trace_duration_ms / 1000).toFixed(1)}s trace；token / USD 需部署后接入 usage metadata。`
+                  : `${data.cost_basis.measured.gemini_turns} Gemini turn(s), ${data.cost_basis.measured.tool_calls} tool call(s), ${(data.cost_basis.measured.trace_duration_ms / 1000).toFixed(1)}s trace measured; token / USD cost requires deployed usage metadata.`
+                : zh
+                  ? "MCP 通道可用于读取 Phoenix；当前还没有可展示的审计运行记录。token / USD 需部署后接入 Gemini usage metadata。"
+                  : "The MCP channel can read Phoenix; no displayable audit-run evidence is available yet. Token / USD cost requires deployed Gemini usage metadata."}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {suggestions.length > 0 && (
+        <div className="mb-3 rounded-2xl border border-emerald-300/20 bg-emerald-400/8 p-3 text-[12px]">
+          <div className="mb-2 flex items-center gap-1.5 font-semibold text-emerald-100">
+            <Lightbulb className="h-3.5 w-3.5" strokeWidth={1.75} aria-hidden />
+            {zh ? "自审改进建议" : "Self-review improvement suggestions"}
+          </div>
+          <ul className="space-y-2">
+            {suggestions.map((suggestion) => (
+              <li key={suggestion.title} className="rounded-xl border border-white/8 bg-black/10 px-2.5 py-2">
+                <div className="font-medium text-white/85">{suggestion.title}</div>
+                <div className="mt-0.5 text-white/58">{suggestion.detail}</div>
+                <div className="mt-1 text-[10px] uppercase text-emerald-200/65">
+                  {zh ? "依据" : "basis"} · {suggestion.basis}
+                </div>
+              </li>
+            ))}
+          </ul>
         </div>
       )}
 
