@@ -5,7 +5,7 @@
 #   ./scripts/deploy-cloud-run.sh
 #
 # Prereqs: gcloud authenticated (`gcloud auth login`), billing-enabled project.
-# Reads PHOENIX_* from .env.local so the Arize Phoenix MCP integration works in prod.
+# Reads PHOENIX_* and Gmail values from env or .env.local so integrations work in prod.
 set -euo pipefail
 
 # gcloud may not be on PATH (this machine keeps the SDK in ~/Documents).
@@ -14,11 +14,32 @@ if ! command -v gcloud >/dev/null 2>&1; then
     [ -x "$sdk/gcloud" ] && export PATH="$sdk:$PATH" && break
   done
 fi
-command -v gcloud >/dev/null 2>&1 || { echo "gcloud not found — install the Google Cloud SDK first."; exit 1; }
+command -v gcloud >/dev/null 2>&1 || { echo "gcloud not found - install the Google Cloud SDK first."; exit 1; }
 
 PROJECT="${GCP_PROJECT:-stayops-498807}"
 REGION="${GCP_REGION:-us-central1}"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+
+read_env() {
+  local name="$1"
+  if [ -n "${!name:-}" ]; then
+    printf '%s' "${!name}"
+    return
+  fi
+  if [ -f "$ROOT/.env.local" ]; then
+    grep -E "^${name}=" "$ROOT/.env.local" 2>/dev/null | tail -n 1 | cut -d= -f2- || true
+  fi
+}
+
+APP_ENV_VARS="GOOGLE_GENAI_USE_VERTEXAI=true,GOOGLE_CLOUD_PROJECT=$PROJECT,GOOGLE_CLOUD_LOCATION=global,GEMINI_MODEL=gemini-3.5-flash,EVAL_API_ENABLED=1,GMAIL_OAUTH_SHOW_TOKEN=false"
+append_app_env_if_present() {
+  local name="$1"
+  local value
+  value="$(read_env "$name")"
+  if [ -n "$value" ]; then
+    APP_ENV_VARS="$APP_ENV_VARS,$name=$value"
+  fi
+}
 
 # ---- Optional: Cloud SQL (Postgres + pgvector) persistent learning ----
 # Without these, learning lives in container-local SQLite (lost on cold start).
@@ -30,26 +51,20 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 # Then export before running this script:
 #   export CLOUD_SQL_INSTANCE="$PROJECT:$REGION:stayops-pg"
 #   export DATABASE_URL='postgresql://postgres:<PASS>@/stayops?host=/cloudsql/'"$CLOUD_SQL_INSTANCE"
-# (pgvector: the app runs CREATE EXTENSION IF NOT EXISTS vector automatically.)
+# The app runs CREATE EXTENSION IF NOT EXISTS vector automatically.
 CLOUD_SQL_INSTANCE="${CLOUD_SQL_INSTANCE:-}"
 DATABASE_URL="${DATABASE_URL:-}"
 SQL_DEPLOY_FLAGS=()
-SQL_ENV=""
 if [ -n "$CLOUD_SQL_INSTANCE" ] && [ -n "$DATABASE_URL" ]; then
   SQL_DEPLOY_FLAGS=(--add-cloudsql-instances "$CLOUD_SQL_INSTANCE")
-  SQL_ENV=",DATABASE_URL=$DATABASE_URL"
   echo "==> Cloud SQL persistence enabled via $CLOUD_SQL_INSTANCE"
 else
-  echo "==> Cloud SQL not configured (CLOUD_SQL_INSTANCE/DATABASE_URL unset) — learning persists per-container only"
+  echo "==> Cloud SQL not configured (CLOUD_SQL_INSTANCE/DATABASE_URL unset) - learning persists per-container only"
 fi
 
-# Pull Phoenix config from .env.local (never committed).
-PHOENIX_COLLECTOR_ENDPOINT="$(grep -E '^PHOENIX_COLLECTOR_ENDPOINT=' "$ROOT/.env.local" | cut -d= -f2-)"
-PHOENIX_API_KEY="$(grep -E '^PHOENIX_API_KEY=' "$ROOT/.env.local" | cut -d= -f2-)"
-GMAIL_CLIENT_ID="$(grep -E '^GMAIL_CLIENT_ID=' "$ROOT/.env.local" | cut -d= -f2-)"
-GMAIL_CLIENT_SECRET="$(grep -E '^GMAIL_CLIENT_SECRET=' "$ROOT/.env.local" | cut -d= -f2-)"
-GMAIL_REDIRECT_URI="$(grep -E '^GMAIL_REDIRECT_URI=' "$ROOT/.env.local" | cut -d= -f2-)"
-GMAIL_REFRESH_TOKEN="$(grep -E '^GMAIL_REFRESH_TOKEN=' "$ROOT/.env.local" | cut -d= -f2-)"
+for name in PHOENIX_COLLECTOR_ENDPOINT PHOENIX_API_KEY GMAIL_CLIENT_ID GMAIL_CLIENT_SECRET GMAIL_REDIRECT_URI GMAIL_REFRESH_TOKEN DATABASE_URL; do
+  append_app_env_if_present "$name"
+done
 
 echo "==> [0/3] One-time setup: APIs + Cloud Build permissions for the default compute SA ..."
 echo "==> Target project: $PROJECT"
@@ -61,7 +76,7 @@ if ! gcloud projects add-iam-policy-binding "$PROJECT" \
   --member "serviceAccount:${PROJECT_NUMBER}-compute@developer.gserviceaccount.com" \
   --role roles/cloudbuild.builds.builder --condition=None >/dev/null; then
   echo ""
-  echo "⚠️  Could not update Cloud Build IAM for project $PROJECT."
+  echo "Could not update Cloud Build IAM for project $PROJECT."
   echo "   Your active gcloud account may not have resourcemanager.projects.setIamPolicy."
   echo "   If the deploy fails during Cloud Build, ask a project Owner to run:"
   echo "   gcloud projects add-iam-policy-binding $PROJECT \\"
@@ -76,8 +91,8 @@ gcloud run deploy stayops \
   --project "$PROJECT" --region "$REGION" \
   --allow-unauthenticated \
   --max-instances 1 --memory 1Gi --timeout 300 \
+  --update-env-vars "$APP_ENV_VARS" \
   ${SQL_DEPLOY_FLAGS[@]+"${SQL_DEPLOY_FLAGS[@]}"} \
-  --set-env-vars "GOOGLE_GENAI_USE_VERTEXAI=true,GOOGLE_CLOUD_PROJECT=$PROJECT,GOOGLE_CLOUD_LOCATION=global,GEMINI_MODEL=gemini-3.5-flash,EVAL_API_ENABLED=1,PHOENIX_COLLECTOR_ENDPOINT=$PHOENIX_COLLECTOR_ENDPOINT,PHOENIX_API_KEY=$PHOENIX_API_KEY,GMAIL_CLIENT_ID=$GMAIL_CLIENT_ID,GMAIL_CLIENT_SECRET=$GMAIL_CLIENT_SECRET,GMAIL_REDIRECT_URI=$GMAIL_REDIRECT_URI,GMAIL_REFRESH_TOKEN=$GMAIL_REFRESH_TOKEN,GMAIL_OAUTH_SHOW_TOKEN=false$SQL_ENV" \
   --quiet
 
 APP_URL="$(gcloud run services describe stayops --project "$PROJECT" --region "$REGION" --format 'value(status.url)')"
@@ -102,7 +117,7 @@ gcloud run services update stayops \
   --quiet
 
 echo ""
-echo "✅ Done."
+echo "Done."
 echo "   Hosted URL (submission): $APP_URL"
 echo "   ADK service:             $ADK_URL"
 echo ""
