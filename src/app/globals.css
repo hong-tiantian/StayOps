@@ -14,7 +14,7 @@
   --mx: 50vw;
   --my: 30vh;
 
-  /* ====== Ambient weather — the background IS the data ======
+  /* ====== Ambient weather palettes ======
      A LIVING sky per state: saturated organic light, never flat fog.
      calm    = lush garden dawn (on track)
      warning = amber sunset haze (at-risk promises)
@@ -263,7 +263,7 @@ body {
     }
   }
 
-  /* ============ Type ladder — the ONLY six sizes ============ */
+  /* ============ Type scale ============ */
   .t-display {
     font-size: 44px;
     line-height: 1.04;
@@ -424,7 +424,7 @@ body {
     border-color: rgba(255, 255, 255, 0.18);
   }
 
-  /* Status edge — 3px left bar, the approved way to color a card */
+  /* Status edge — 3px left bar for card state */
   .status-edge {
     position: relative;
   }
@@ -587,7 +587,7 @@ body {
   }
 
   /* ============ Legacy aliases → liquid glass material ============ */
-  /* The app frame is an almost-clear pane. CRITICAL: it must have NO
+  /* The app frame is an almost-clear pane. It must have no
      backdrop-filter at all — an ancestor with backdrop-filter becomes the
      "backdrop root" in Chrome, after which the inner cards' blur can no
      longer sample the fixed sky behind the frame, and the glass collapses

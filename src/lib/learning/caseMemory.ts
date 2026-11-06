@@ -9,7 +9,7 @@ import { cosine, embedDocuments, embedQuery, keywordScore, keywordTokens, EMBEDD
  *
  * Cases come from two places:
  *   1. data/corpus/learned_cases.json — synthesized from real hotel cases
- *      (operator's own front-desk records, public front-desk stories) by
+ *      (synthetic and public front-desk scenarios) by
  *      scripts/synthesize-cases.mjs. Seeded into SQLite on first access.
  *   2. Live audits the managers corrected — recordCaseFromFeedback() turns a
  *      manager decision into a new retrievable case, so the agent's behavior

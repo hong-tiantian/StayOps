@@ -1,9 +1,10 @@
 # StayOps Promise Ledger
 
-> ⚠️ **This README is rewritten last before submission.** Mid-sprint it may lag the code
-> and the spec — for current product behavior, `docs/00-spec.md` is the authority.
-
 **A promise verification and recovery layer for hotel operations — powered by a Gemini agent with deterministic policy guardrails.**
+
+🔗 **[Live demo →](https://stayops-mzcsrz357a-uc.a.run.app)** · Built with Gemini + Google Cloud · Next.js 16 · Arize Phoenix observability
+
+[![StayOps manager workspace](docs/images/dashboard.jpg)](https://stayops-mzcsrz357a-uc.a.run.app)
 
 StayOps is **not a guest chatbot and not a task manager**. It is a promise verification and recovery layer. A Gemini agent reads guest-facing promises *before* arrival, autonomously gathers operational evidence with tools, and a deterministic policy layer decides what the hotel can actually commit to — routing only verified or approved actions to teams. When something goes wrong, it traces a complaint back to the exact broken promise and the task that failed.
 
@@ -217,7 +218,7 @@ All synthetic data lives in `/data` as CSV (loaded by `src/lib/data.ts`), acting
 - Free-tier Gemini quota is low; the agent uses exponential backoff and caches successful audits.
 - Data freshness uses a fixed `DEMO_NOW`; the freshness gate logic is real, but all demo sources are currently fresh.
 - Arize/Phoenix tracing and MCP self-review are present, but MCP evidence is not yet shown per promise and does not yet change policy decisions.
-- Local ADK / Agent Builder orchestration is implemented. A Cloud Run URL is documented above; verify the final hosted environment has `ADK_AGENT_URL` and Phoenix env configured before submission.
+- Local ADK / Agent Builder orchestration is implemented and the app is deployed to Cloud Run (link above). The hosted environment needs `ADK_AGENT_URL` and the Phoenix env vars configured for the full ADK + tracing path.
 
 ## Project Docs
 
