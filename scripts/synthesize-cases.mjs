@@ -6,7 +6,7 @@
  * extract the operational lesson from each story, filters junk, and APPENDS
  * the results to data/corpus/learned_cases.json (deduped). On next server
  * start, caseMemory seeds new rows and embeds them — the agent's behavior now
- * reflects real, public front-desk experience, not hand-written rules.
+ * reflects public front-desk scenarios in addition to hand-written rules.
  *
  * Uses the same Vertex ADC credentials as the app (.env.local).
  *

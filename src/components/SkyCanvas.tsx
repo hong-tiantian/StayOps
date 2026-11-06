@@ -21,28 +21,30 @@ import { Sparkles } from "lucide-react";
  * Weather comes from <html data-weather> (owned by page.tsx) via a
  * MutationObserver, so this component needs no props and no context.
  *
- * Curated photos are supplied by the project in images.zip and extracted into
- * public/sky/imported so the UI does not depend on external photo sources.
+ * Curated photos are committed under public/sky/imported so the core UI does
+ * not depend on external photo sources.
  */
 
 type Weather = "calm" | "warning" | "critical";
 
+// Curated photos from Pexels (Pexels License, free to use). Per-image
+// photographer credits and source pages are in ATTRIBUTIONS.md at the repo root.
 const POOLS: Record<Weather, string[]> = {
   calm: [
-    "/sky/imported/MonurikiFiji.jpg",
-    "/sky/imported/QueenslandReef.jpg",
-    "/sky/imported/PalouseWA.jpg",
-    "/sky/imported/GalapagosPenguins.jpg",
+    "/sky/imported/MountainLake.jpg",
+    "/sky/imported/GreenMeadow.jpg",
+    "/sky/imported/AlpsArles.jpg",
+    "/sky/imported/BlueRoofSky.jpg",
   ],
   warning: [
-    "/sky/imported/EvergladesWetlands.jpg",
-    "/sky/imported/Hnausapollur.jpg",
-    "/sky/imported/Limpets.jpg",
+    "/sky/imported/UrbanDusk.jpg",
+    "/sky/imported/MountainLake.jpg",
+    "/sky/imported/AlpsArles.jpg",
   ],
   critical: [
-    "/sky/imported/GlacialRivers.jpg",
-    "/sky/imported/Hnausapollur.jpg",
-    "/sky/imported/EvergladesWetlands.jpg",
+    "/sky/imported/Nebula.jpg",
+    "/sky/imported/UrbanDusk.jpg",
+    "/sky/imported/GreenMeadow.jpg",
   ],
 };
 

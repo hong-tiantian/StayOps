@@ -1,19 +1,23 @@
 # Eval Cases
 
-`goldens.json` is the **single source of expected answers** for `npm run eval` — the
-domain expert defines "correct", the agent has to pass. Do not duplicate expectations in
-code.
+`goldens.json` is the single source of expected answers for `npm run eval`.
+The case definition states what "correct" means, and the agent has to pass that
+contract. Do not duplicate golden expectations in code.
 
-## Adding a case
+## Adding A Case
 
-1. Follow the case template and the 9 required content items in
-   `../gmail-metrics-execution-plan.md` → Phase 5, "Human-authored case expansion"
-   (case identity, source messages, booking facts, operational evidence, golden promise
-   list, expected evidence/tools, expected task/approval outcome, complaint expectation,
-   edge-case note).
-2. **Human-authored goldens are the authority.** Write 2–3 realistic cases by hand first
-   (the teammate with hotel experience reviews and signs them). AI may generate wording
-   variants afterwards, but AI variants are never the authority for correctness.
-3. New cases must NOT modify the Acme main flow: `BKG-2026-0718-ACME` keeps exactly 6
-   promises, `TASK-102` due 14:00, `TASK-103` open.
-4. Mark each case `public_safe: true/false` so the demo video/repo only shows safe ones.
+Each case should include:
+
+1. Case identity: `case_id`, title, hotel context, and public-safety flag.
+2. Source messages with ids, channel, sender role, timestamp, subject, and body.
+3. Booking facts such as booking id, arrival/departure dates, room count, event
+   space, event time, and known or missing contact details.
+4. Operational evidence such as SOP rules, inventory, readiness, transport,
+   billing, approval, or task facts.
+5. Golden promises with expected status, required tools, required evidence, and
+   approval expectations.
+6. Expected task, approval, complaint, and recovery outcomes when applicable.
+7. An edge-case note explaining what behavior the case tests.
+
+New cases must not modify the Acme main flow: `BKG-2026-0718-ACME` keeps exactly
+six promises, `TASK-102` remains due at 14:00, and `TASK-103` remains open.

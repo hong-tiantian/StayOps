@@ -14,3 +14,9 @@ npm-debug.log*
 # Only the distilled data/corpus/learned_cases.json is committed (the app seeds from it).
 /data/corpus/raw_harvest.json
 /data/corpus/reddit_raw.json
+
+# Build/demo asset bundle — large, regenerable, not needed to run the app.
+/images.zip
+
+# Internal, non-public working notes (team split, demo invariants, submission checklist).
+/docs/internal-notes.md

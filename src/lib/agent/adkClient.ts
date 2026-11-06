@@ -8,7 +8,7 @@ import { Message, ToolCall } from "../types";
  * (Cloud Run). It is the PRIMARY orchestration layer — built on the ADK runtime,
  * which is the official Agent Builder framework. When `ADK_AGENT_URL` is set, the
  * audit is orchestrated there; otherwise the app falls back to the in-app Gemini
- * loop, then to the deterministic policy engine, so the demo never breaks.
+ * loop, then to the deterministic policy engine.
  *
  * Contract (to align with the ADK service's stage-2 HTTP wiring):
  *   POST {ADK_AGENT_URL}/audit   body: { booking_id, messages? }

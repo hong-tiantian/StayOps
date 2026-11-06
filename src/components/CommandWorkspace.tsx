@@ -28,7 +28,7 @@ import {
 import { Lang } from "@/lib/i18n";
 import { deptLabel, effectiveStatus, fieldLabel, humanizeOpsText } from "@/lib/humanize";
 
-/* Manager workspace — answers ONE question: "what needs me right now?"
+/* Manager workspace focused on the duty manager's active queue.
    Everything technical (agent pipeline, tool calls, eval, freshness toggles)
    lives in the Judge view. */
 

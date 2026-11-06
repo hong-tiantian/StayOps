@@ -10,11 +10,10 @@ export function rejectEvalRequest(req: Request): NextResponse | null {
     return NextResponse.json({ error: "not_found" }, { status: 404 });
   }
 
+  // Token is optional. If EVAL_API_TOKEN is set, the endpoint is locked to
+  // callers presenting it (CLI/CI use). If it is unset, the eval runs open so
+  // the hosted demo's Judge-view eval card works from the browser.
   const token = process.env.EVAL_API_TOKEN;
-  if (isProduction && !token) {
-    return NextResponse.json({ error: "eval_api_token_not_configured" }, { status: 503 });
-  }
-
   if (token && req.headers.get("authorization") !== `Bearer ${token}`) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }

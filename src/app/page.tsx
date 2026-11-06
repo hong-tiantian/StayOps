@@ -246,7 +246,7 @@ export default function Page() {
     return map;
   }, [decisions]);
 
-  // Ambient weather — the page atmosphere IS the primary status indicator.
+  // Ambient weather reflects the current audit severity.
   // calm = on track · warning = at-risk promises or stale data · critical = failures/conflicts.
   // Stale data alone is a caution (the gate already blocks guarantees), not an emergency —
   // critical is reserved for actual broken/conflicting promises.
